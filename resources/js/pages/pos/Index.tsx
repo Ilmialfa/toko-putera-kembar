@@ -2,7 +2,10 @@ import { router, useHttp } from '@inertiajs/react';
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
-import { open as openShift } from '@/actions/App/Domain/Sales/Controllers/CashierShiftController';
+import {
+    close as closeShift,
+    open as openShift,
+} from '@/actions/App/Domain/Sales/Controllers/CashierShiftController';
 import { store as checkoutStore } from '@/actions/App/Domain/Sales/Controllers/CheckoutController';
 import { search as searchProducts } from '@/actions/App/Domain/Sales/Controllers/PosProductController';
 import { Button } from '@/components/ui/button';
@@ -89,12 +92,16 @@ const paymentMethodLabels: Record<string, string> = {
 };
 
 export default function PosIndex({ currentShift }: any) {
-    const [openingBalance, setOpeningBalance] = useState('');
+    const [openingBalance, setOpeningBalance] = useState('0');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
     const [search, setSearch] = useState('');
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+    const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
+    const [closingBalanceActual, setClosingBalanceActual] = useState('');
+    const [closingNotes, setClosingNotes] = useState('');
+    const [isClosingShift, setIsClosingShift] = useState(false);
 
     // Promo/Voucher states
     const [voucherCode, setVoucherCode] = useState('');
@@ -183,7 +190,34 @@ export default function PosIndex({ currentShift }: any) {
             { opening_balance: openingBalance },
             {
                 preserveState: true,
+                onError: (errors) =>
+                    toast.error(
+                        errors.opening_balance ??
+                            errors.shift ??
+                            'Shift tidak dapat dibuka.',
+                    ),
                 onFinish: () => setIsSubmitting(false),
+            },
+        );
+    };
+
+    const handleCloseShift = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsClosingShift(true);
+        router.post(
+            closeShift.url(),
+            {
+                closing_balance_actual: closingBalanceActual,
+                notes: closingNotes || null,
+            },
+            {
+                onError: (errors) =>
+                    toast.error(
+                        errors.closing_balance_actual ??
+                            errors.shift ??
+                            'Shift tidak dapat ditutup.',
+                    ),
+                onFinish: () => setIsClosingShift(false),
             },
         );
     };
@@ -381,6 +415,11 @@ export default function PosIndex({ currentShift }: any) {
                                             min="0"
                                             placeholder="contoh: 500000"
                                         />
+                                        <p className="text-xs leading-5 text-muted-foreground">
+                                            Isi 0 jika laci kasir dimulai tanpa
+                                            uang tunai. Nilai ini dipakai saat
+                                            rekonsiliasi tutup shift.
+                                        </p>
                                     </div>
                                 </div>
                                 <DialogFooter>
@@ -411,7 +450,18 @@ export default function PosIndex({ currentShift }: any) {
     }
 
     return (
-        <PosLayout title="POS">
+        <PosLayout
+            title="POS"
+            headerActions={
+                <button
+                    type="button"
+                    onClick={() => setIsCloseShiftModalOpen(true)}
+                    className="min-h-10 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20"
+                >
+                    Tutup Shift
+                </button>
+            }
+        >
             <div className="flex h-full w-full flex-col bg-[#f4f6f0] md:flex-row">
                 {/* Product Area */}
                 <div className="flex flex-1 flex-col p-4">
@@ -682,6 +732,76 @@ export default function PosIndex({ currentShift }: any) {
                                 : 'Selesaikan Pembayaran'}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isCloseShiftModalOpen}
+                onOpenChange={setIsCloseShiftModalOpen}
+            >
+                <DialogContent className="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Tutup Shift #{currentShift.id}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Hitung seluruh uang tunai fisik di laci. Sistem akan
+                            membandingkannya dengan modal awal, penjualan tunai,
+                            serta kas masuk dan keluar.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCloseShift} className="space-y-5">
+                        <div className="grid gap-2">
+                            <Label htmlFor="closing_balance_actual">
+                                Uang fisik aktual (Rp)
+                            </Label>
+                            <Input
+                                id="closing_balance_actual"
+                                type="number"
+                                min="0"
+                                required
+                                autoFocus
+                                value={closingBalanceActual}
+                                onChange={(event) =>
+                                    setClosingBalanceActual(event.target.value)
+                                }
+                                placeholder="Jumlah seluruh uang di laci"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="closing_notes">
+                                Catatan (opsional)
+                            </Label>
+                            <textarea
+                                id="closing_notes"
+                                rows={3}
+                                value={closingNotes}
+                                onChange={(event) =>
+                                    setClosingNotes(event.target.value)
+                                }
+                                className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                                placeholder="Contoh: uang receh disimpan terpisah"
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsCloseShiftModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={isClosingShift}
+                                className="bg-amber-400 text-stone-950 hover:bg-amber-300"
+                            >
+                                {isClosingShift
+                                    ? 'Menutup shift...'
+                                    : 'Konfirmasi Tutup Shift'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
         </PosLayout>

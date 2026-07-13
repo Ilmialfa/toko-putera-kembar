@@ -3,7 +3,6 @@
 namespace App\Domain\Sales\Actions;
 
 use App\Models\CashierShift;
-use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class OpenShiftAction
@@ -13,7 +12,6 @@ class OpenShiftAction
      */
     public function execute(int $userId, int $storeId, float $openingBalance, ?string $notes = null): CashierShift
     {
-        // Check if there is already an open shift for this user
         $existingShift = CashierShift::where('user_id', $userId)
             ->where('store_id', $storeId)
             ->where('status', 'open')
@@ -21,7 +19,7 @@ class OpenShiftAction
 
         if ($existingShift) {
             throw ValidationException::withMessages([
-                'shift' => 'You already have an open shift. Please close it first.',
+                'shift' => 'Anda masih memiliki shift aktif. Tutup shift tersebut terlebih dahulu.',
             ]);
         }
 
@@ -30,7 +28,7 @@ class OpenShiftAction
             'store_id' => $storeId,
             'opening_balance' => $openingBalance,
             'status' => 'open',
-            'opening_at' => Carbon::now(),
+            'opening_at' => now(),
             'notes' => $notes,
         ]);
     }

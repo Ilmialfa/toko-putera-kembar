@@ -3,7 +3,6 @@
 namespace App\Domain\Sales\Actions;
 
 use App\Models\CashierShift;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -17,7 +16,7 @@ class CloseCashierShiftAction
     {
         if ($shift->status !== 'open') {
             throw ValidationException::withMessages([
-                'shift' => 'This shift is already closed.',
+                'shift' => 'Shift ini sudah ditutup.',
             ]);
         }
 
@@ -56,7 +55,7 @@ class CloseCashierShiftAction
             'closing_balance_actual' => $actualBalance,
             'selisih_kas' => $selisih,
             'status' => 'closed',
-            'closing_at' => Carbon::now(),
+            'closing_at' => now(),
             'notes' => $notes,
         ]);
 
