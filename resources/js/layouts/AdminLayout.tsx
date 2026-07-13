@@ -513,11 +513,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
                 {/* Main Content */}
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                    <header className="flex h-14 shrink-0 items-center border-b border-border bg-card px-6">
-                        <h1 className="text-sm font-semibold text-foreground">
-                            {title || 'Admin Panel'}
-                        </h1>
-                    </header>
                     <main className="flex-1 overflow-auto">{children}</main>
                 </div>
             </div>
