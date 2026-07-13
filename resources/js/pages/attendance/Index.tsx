@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import CameraCaptureWithWatermark from '@/components/CameraCaptureWithWatermark';
 import { useGeolocationCapture } from '@/hooks/useGeolocationCapture';
 
-export default function AttendanceIndex({ employees }: any) {
+export default function AttendanceIndex({ employees, serverTime }: any) {
     const [method, setMethod] = useState<'photo_geo' | 'barcode_kiosk' | null>(
         null,
     );
@@ -316,6 +316,7 @@ export default function AttendanceIndex({ employees }: any) {
                                                 </div>
                                             ) : (
                                                 <CameraCaptureWithWatermark
+                                                    serverTime={serverTime}
                                                     onCapture={
                                                         handlePhotoCapture
                                                     }

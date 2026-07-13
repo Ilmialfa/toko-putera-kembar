@@ -5,189 +5,306 @@ namespace App\Domain\Promotion\Services;
 use App\Models\Promotion;
 use App\Models\PromotionUsage;
 use App\Models\Voucher;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PromotionEngine
 {
     /**
-     * Calculate applicable promotions for a cart/checkout.
-     *
-     * @param  string  $channel  (pos, online)
-     * @param  array  $items  Array of ['product_id' => x, 'qty' => y, 'price_per_unit' => z, 'subtotal' => w, 'category_id' => c, 'brand_id' => b]
-     * @return array [
-     *               'discount_total' => total_discount_amount,
-     *               'applied_promotions' => list of promotion details,
-     *               'items' => updated items with discount_amount populated
-     *               ]
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array{discount_total:float,cashback_total:float,point_multiplier:float,free_items:array<int,array<string,mixed>>,applied_promotions:array<int,array<string,mixed>>,items:array<int,array<string,mixed>>}
      */
     public function calculate(int $storeId, string $channel, array $items, float $subtotal, ?string $voucherCode = null, ?int $customerId = null): array
     {
-        $now = Carbon::now();
-
-        // 1. Fetch active promos (excluding voucher type unless code is provided)
-        $query = Promotion::where('store_id', $storeId)
+        $promotions = Promotion::query()
+            ->where('store_id', $storeId)
             ->where('is_active', true)
-            ->where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now)
-            ->where(function ($q) use ($channel) {
-                $q->where('channel', 'both')->orWhere('channel', $channel);
-            })
+            ->where('status', 'active')
+            ->where('start_date', '<=', now())
+            ->where('end_date', '>=', now())
+            ->whereIn('channel', [$channel, 'both'])
             ->with(['conditions', 'rewards'])
-            ->orderBy('priority', 'desc');
+            ->orderByDesc('priority')
+            ->get()
+            ->filter(fn (Promotion $promotion): bool => $promotion->type !== 'voucher' && $promotion->type !== 'loyalty_point');
 
-        $activePromos = $query->get()->filter(function ($promo) {
-            return $promo->type !== 'voucher' && $promo->type !== 'loyalty_point';
-        });
-
-        $voucherPromo = null;
-        $voucherModel = null;
-        if ($voucherCode) {
-            $voucherModel = Voucher::where('code', $voucherCode)->where('is_active', true)->first();
-            if ($voucherModel) {
-                $vPromo = Promotion::where('id', $voucherModel->promotion_id)
-                    ->where('store_id', $storeId)
-                    ->where('is_active', true)
-                    ->where('start_date', '<=', $now)
-                    ->where('end_date', '>=', $now)
-                    ->with(['conditions', 'rewards'])
-                    ->first();
-
-                if ($vPromo) {
-                    $voucherPromo = $vPromo;
-                    $activePromos->push($vPromo);
-                } else {
-                    throw ValidationException::withMessages(['voucher' => 'Voucher expired or invalid.']);
-                }
-            } else {
-                throw ValidationException::withMessages(['voucher' => 'Invalid voucher code.']);
-            }
+        [$voucher, $voucherPromotion] = $this->resolveVoucher($voucherCode, $storeId, $channel);
+        if ($voucherPromotion !== null) {
+            $promotions->push($voucherPromotion);
         }
 
-        // 2. Validate Limits
-        $validPromos = new Collection;
-        foreach ($activePromos as $promo) {
-            if ($promo->usage_limit_total) {
-                $totalUsed = PromotionUsage::where('promotion_id', $promo->id)->count();
-                if ($totalUsed >= $promo->usage_limit_total) {
-                    continue;
-                }
-            }
-            if ($promo->usage_limit_per_customer && $customerId) {
-                $customerUsed = PromotionUsage::where('promotion_id', $promo->id)
-                    ->where('customer_id', $customerId)
-                    ->count();
-                if ($customerUsed >= $promo->usage_limit_per_customer) {
-                    continue;
-                }
-            }
-            if ($promo->min_purchase_amount && $subtotal < $promo->min_purchase_amount) {
-                continue; // Does not meet min amount
-            }
-            $validPromos->push($promo);
-        }
+        $promotions = $this->eligiblePromotions($promotions, $subtotal, $customerId);
+        $preparedItems = collect($items)->map(function (array $item): array {
+            return [
+                ...$item,
+                'discount_amount' => 0.0,
+                'net_subtotal' => round((float) $item['subtotal'], 2),
+            ];
+        })->values()->all();
 
-        // 3. Apply Promos and handle stacking
-        $totalDiscount = 0;
-        $appliedPromos = [];
-        $hasUnstackable = false;
+        $applied = [];
+        $appliedByPromotion = [];
+        $nonStackableCandidates = [];
+        $stackableCandidates = [];
 
-        // Initialize item discounts
-        foreach ($items as &$item) {
-            $item['discount_amount'] = 0;
-            $item['net_subtotal'] = $item['subtotal'];
-        }
-        unset($item);
-
-        foreach ($validPromos as $promo) {
-            if ($hasUnstackable) {
-                break;
-            } // If an unstackable promo was applied, stop.
-
-            $appliedAmount = 0;
-            $reward = $promo->rewards->first();
-            if (! $reward) {
+        foreach ($promotions->whereIn('type', ['discount_item', 'discount_category']) as $promotion) {
+            $reward = $promotion->rewards->first();
+            if ($reward === null) {
                 continue;
             }
 
-            if ($promo->type === 'discount_item' || $promo->type === 'discount_category') {
-                $conditions = $promo->conditions;
-
-                foreach ($items as &$item) {
-                    // Check if item matches scope
-                    $isMatch = false;
-                    if ($promo->applicable_scope === 'all') {
-                        $isMatch = true;
-                    } elseif ($promo->applicable_scope === 'product') {
-                        $isMatch = $conditions->contains(fn ($c) => $c->conditionable_type === 'product' && $c->conditionable_id == $item['product_id']);
-                    } elseif ($promo->applicable_scope === 'category') {
-                        $isMatch = $conditions->contains(fn ($c) => $c->conditionable_type === 'category' && $c->conditionable_id == $item['category_id']);
-                    }
-
-                    if ($isMatch) {
-                        $discount = 0;
-                        if ($reward->reward_type === 'percent_discount') {
-                            $discount = $item['net_subtotal'] * ($reward->value / 100);
-                        } elseif ($reward->reward_type === 'fixed_discount') {
-                            // fixed per item qty or flat? Usually per unit.
-                            $discount = $reward->value * $item['qty'];
-                            if ($discount > $item['net_subtotal']) {
-                                $discount = $item['net_subtotal'];
-                            }
-                        }
-
-                        $item['discount_amount'] += $discount;
-                        $item['net_subtotal'] -= $discount;
-                        $appliedAmount += $discount;
-                    }
+            foreach ($preparedItems as $index => $item) {
+                if (! $this->matches($promotion, $item)) {
+                    continue;
                 }
-                unset($item);
-            } elseif ($promo->type === 'voucher') {
-                if ($reward->reward_type === 'percent_discount') {
-                    $appliedAmount = $subtotal * ($reward->value / 100);
-                } elseif ($reward->reward_type === 'fixed_discount') {
-                    $appliedAmount = $reward->value;
-                }
-                // Distribute voucher discount proportionally to items
-                if ($appliedAmount > 0) {
-                    $currentSubtotal = array_sum(array_column($items, 'net_subtotal'));
-                    if ($appliedAmount > $currentSubtotal) {
-                        $appliedAmount = $currentSubtotal;
-                    }
 
-                    foreach ($items as &$item) {
-                        if ($currentSubtotal > 0) {
-                            $proportion = $item['net_subtotal'] / $currentSubtotal;
-                            $itemDiscount = round($appliedAmount * $proportion, 2);
-                            $item['discount_amount'] += $itemDiscount;
-                            $item['net_subtotal'] -= $itemDiscount;
-                        }
-                    }
-                    unset($item);
+                $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, (float) $item['subtotal'], (float) $item['qty']);
+                $amount = $this->cap($promotion, $amount);
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $candidate = ['promotion' => $promotion, 'item_index' => $index, 'amount' => $amount];
+                if ($promotion->is_stackable) {
+                    $stackableCandidates[] = $candidate;
+                } else {
+                    $nonStackableCandidates[$index][] = $candidate;
                 }
             }
+        }
 
-            if ($appliedAmount > 0) {
-                $totalDiscount += $appliedAmount;
-                $appliedPromos[] = [
-                    'promotion_id' => $promo->id,
-                    'name' => $promo->name,
-                    'type' => $promo->type,
-                    'amount' => $appliedAmount,
-                    'voucher_id' => $promo->type === 'voucher' ? $voucherModel?->id : null,
-                ];
+        foreach ($nonStackableCandidates as $candidates) {
+            usort($candidates, fn (array $left, array $right): int => [$right['amount'], $right['promotion']->priority] <=> [$left['amount'], $left['promotion']->priority]);
+            $this->applyItemCandidate($preparedItems, $candidates[0], $appliedByPromotion);
+        }
+        foreach ($stackableCandidates as $candidate) {
+            $this->applyItemCandidate($preparedItems, $candidate, $appliedByPromotion);
+        }
 
-                if (! $promo->is_stackable) {
-                    $hasUnstackable = true;
-                }
+        foreach ($appliedByPromotion as $promotionId => $detail) {
+            $applied[] = [
+                'promotion_id' => $promotionId,
+                'name' => $detail['promotion']->name,
+                'type' => $detail['promotion']->type,
+                'amount' => round($detail['amount'], 2),
+                'voucher_id' => null,
+            ];
+        }
+
+        $discountTotal = round((float) collect($preparedItems)->sum('discount_amount'), 2);
+        $cashbackTotal = 0.0;
+        $pointMultiplier = 1.0;
+        $freeItems = [];
+        $hasExclusiveCartPromotion = false;
+
+        foreach ($promotions->whereNotIn('type', ['discount_item', 'discount_category']) as $promotion) {
+            if ($hasExclusiveCartPromotion && ! $promotion->is_stackable) {
+                continue;
+            }
+
+            $reward = $promotion->rewards->first();
+            if ($reward === null) {
+                continue;
+            }
+
+            $amount = 0.0;
+            $cashback = 0.0;
+            $promoFreeItems = [];
+            if ($promotion->type === 'voucher') {
+                $netSubtotal = max(0, $subtotal - $discountTotal);
+                $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, $netSubtotal, 1);
+            } elseif ($promotion->type === 'bundling' && $this->bundleSatisfied($promotion, $preparedItems)) {
+                $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, max(0, $subtotal - $discountTotal), 1);
+            } elseif ($promotion->type === 'bxgy') {
+                $promoFreeItems = $this->freeItems($promotion, $preparedItems);
+            } elseif ($promotion->type === 'cashback') {
+                $cashback = (string) $reward->reward_type === 'percent_discount'
+                    ? max(0, $subtotal - $discountTotal) * ((float) $reward->value / 100)
+                    : (float) $reward->value;
+            }
+
+            $amount = min(max(0, $subtotal - $discountTotal), $this->cap($promotion, $amount));
+            $cashback = $this->cap($promotion, $cashback);
+            if ($amount <= 0 && $cashback <= 0 && $promoFreeItems === []) {
+                continue;
+            }
+
+            if ($amount > 0) {
+                $this->distributeCartDiscount($preparedItems, $amount);
+                $discountTotal = round($discountTotal + $amount, 2);
+            }
+            $cashbackTotal = round($cashbackTotal + $cashback, 2);
+            $freeItems = [...$freeItems, ...$promoFreeItems];
+            $applied[] = [
+                'promotion_id' => $promotion->id,
+                'name' => $promotion->name,
+                'type' => $promotion->type,
+                'amount' => round($amount, 2),
+                'cashback' => round($cashback, 2),
+                'voucher_id' => $promotion->type === 'voucher' ? $voucher?->id : null,
+            ];
+            $hasExclusiveCartPromotion = ! $promotion->is_stackable;
+        }
+
+        foreach ($promotions->where('type', 'loyalty_point') as $promotion) {
+            $reward = $promotion->rewards->firstWhere('reward_type', 'point_multiplier');
+            if ($reward !== null) {
+                $pointMultiplier = max($pointMultiplier, (float) $reward->value);
+                $applied[] = ['promotion_id' => $promotion->id, 'name' => $promotion->name, 'type' => $promotion->type, 'amount' => 0.0, 'voucher_id' => null];
             }
         }
 
         return [
-            'discount_total' => $totalDiscount,
-            'applied_promotions' => $appliedPromos,
-            'items' => $items,
+            'discount_total' => round($discountTotal, 2),
+            'cashback_total' => round($cashbackTotal, 2),
+            'point_multiplier' => $pointMultiplier,
+            'free_items' => $freeItems,
+            'applied_promotions' => $applied,
+            'items' => $preparedItems,
         ];
+    }
+
+    /** @return array{0:?Voucher,1:?Promotion} */
+    private function resolveVoucher(?string $code, int $storeId, string $channel): array
+    {
+        if ($code === null || trim($code) === '') {
+            return [null, null];
+        }
+
+        $voucher = Voucher::query()->where('code', mb_strtoupper(trim($code)))->where('is_active', true)->first();
+        if ($voucher === null || ($voucher->expires_at !== null && $voucher->expires_at->isPast())) {
+            throw ValidationException::withMessages(['voucher' => 'Kode voucher tidak valid atau sudah kedaluwarsa.']);
+        }
+
+        if ($voucher->max_uses !== null && PromotionUsage::query()->where('voucher_id', $voucher->id)->count() >= $voucher->max_uses) {
+            throw ValidationException::withMessages(['voucher' => 'Kuota penggunaan voucher sudah habis.']);
+        }
+
+        $promotion = Promotion::query()
+            ->whereKey($voucher->promotion_id)
+            ->where('store_id', $storeId)
+            ->where('status', 'active')
+            ->where('is_active', true)
+            ->whereIn('channel', [$channel, 'both'])
+            ->where('start_date', '<=', now())
+            ->where('end_date', '>=', now())
+            ->with(['conditions', 'rewards'])
+            ->first();
+
+        if ($promotion === null) {
+            throw ValidationException::withMessages(['voucher' => 'Promosi voucher sedang tidak aktif.']);
+        }
+
+        return [$voucher, $promotion];
+    }
+
+    /** @param Collection<int, Promotion> $promotions @return Collection<int, Promotion> */
+    private function eligiblePromotions(Collection $promotions, float $subtotal, ?int $customerId): Collection
+    {
+        return $promotions->filter(function (Promotion $promotion) use ($subtotal, $customerId): bool {
+            if ($promotion->usage_limit_total !== null && PromotionUsage::query()->where('promotion_id', $promotion->id)->count() >= $promotion->usage_limit_total) {
+                return false;
+            }
+            if ($promotion->usage_limit_per_customer !== null && $customerId !== null
+                && PromotionUsage::query()->where('promotion_id', $promotion->id)->where('customer_id', $customerId)->count() >= $promotion->usage_limit_per_customer) {
+                return false;
+            }
+            if ($promotion->customer_group_id !== null && $customerId === null) {
+                return false;
+            }
+            if ($promotion->customer_group_id !== null && ! DB::table('customers')->where('id', $customerId)->where('customer_group_id', $promotion->customer_group_id)->exists()) {
+                return false;
+            }
+
+            return $promotion->min_purchase_amount === null || $subtotal >= (float) $promotion->min_purchase_amount;
+        })->values();
+    }
+
+    /** @param array<string,mixed> $item */
+    private function matches(Promotion $promotion, array $item): bool
+    {
+        if ($promotion->applicable_scope === 'all') {
+            return true;
+        }
+
+        $field = match ($promotion->applicable_scope) {
+            'product' => 'product_id',
+            'category' => 'category_id',
+            'brand' => 'brand_id',
+            default => null,
+        };
+
+        return $field !== null && $promotion->conditions->contains(fn ($condition): bool => $condition->conditionable_type === $promotion->applicable_scope
+            && (int) $condition->conditionable_id === (int) ($item[$field] ?? 0)
+            && (float) $item['qty'] >= (float) ($condition->min_qty ?? 0));
+    }
+
+    private function discountAmount(string $type, float $value, float $subtotal, float $quantity): float
+    {
+        return match ($type) {
+            'percent_discount' => round($subtotal * ($value / 100), 2),
+            'fixed_discount' => min($subtotal, round($value * $quantity, 2)),
+            default => 0.0,
+        };
+    }
+
+    private function cap(Promotion $promotion, float $amount): float
+    {
+        return $promotion->max_discount_amount === null ? round($amount, 2) : round(min($amount, (float) $promotion->max_discount_amount), 2);
+    }
+
+    /** @param array<array<string,mixed>> $items @param array<string,mixed> $candidate @param array<int,array<string,mixed>> $applied */
+    private function applyItemCandidate(array &$items, array $candidate, array &$applied): void
+    {
+        $index = $candidate['item_index'];
+        $amount = min((float) $candidate['amount'], (float) $items[$index]['net_subtotal']);
+        $items[$index]['discount_amount'] = round((float) $items[$index]['discount_amount'] + $amount, 2);
+        $items[$index]['net_subtotal'] = round((float) $items[$index]['net_subtotal'] - $amount, 2);
+        $promotion = $candidate['promotion'];
+        $applied[$promotion->id] ??= ['promotion' => $promotion, 'amount' => 0.0];
+        $applied[$promotion->id]['amount'] += $amount;
+    }
+
+    /** @param array<int,array<string,mixed>> $items */
+    private function bundleSatisfied(Promotion $promotion, array $items): bool
+    {
+        return $promotion->conditions->every(function ($condition) use ($items): bool {
+            return collect($items)->contains(fn (array $item): bool => $condition->conditionable_type === 'product'
+                && (int) $item['product_id'] === (int) $condition->conditionable_id
+                && (float) $item['qty'] >= (float) ($condition->min_qty ?? 1));
+        });
+    }
+
+    /** @param array<int,array<string,mixed>> $items @return array<int,array<string,mixed>> */
+    private function freeItems(Promotion $promotion, array $items): array
+    {
+        $reward = $promotion->rewards->firstWhere('reward_type', 'free_product');
+        $buyCondition = $promotion->conditions->firstWhere('conditionable_type', 'product');
+        if ($reward === null || $buyCondition === null || $reward->free_product_id === null) {
+            return [];
+        }
+
+        $buyQuantity = (float) collect($items)->where('product_id', $buyCondition->conditionable_id)->sum('qty');
+        $groups = (int) floor($buyQuantity / max(0.001, (float) ($buyCondition->min_qty ?? 1)));
+        $freeQuantity = round($groups * (float) ($reward->free_product_qty ?? 1), 3);
+
+        return $freeQuantity > 0 ? [['product_id' => (int) $reward->free_product_id, 'qty' => $freeQuantity]] : [];
+    }
+
+    /** @param array<array<string,mixed>> $items */
+    private function distributeCartDiscount(array &$items, float $amount): void
+    {
+        $netTotal = (float) collect($items)->sum('net_subtotal');
+        $remaining = round($amount, 2);
+        $lastIndex = array_key_last($items);
+        foreach ($items as $index => &$item) {
+            $share = $index === $lastIndex ? $remaining : round($amount * ((float) $item['net_subtotal'] / max(0.01, $netTotal)), 2);
+            $share = min($share, (float) $item['net_subtotal']);
+            $item['discount_amount'] = round((float) $item['discount_amount'] + $share, 2);
+            $item['net_subtotal'] = round((float) $item['net_subtotal'] - $share, 2);
+            $remaining = round($remaining - $share, 2);
+        }
+        unset($item);
     }
 }

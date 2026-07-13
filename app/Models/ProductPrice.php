@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Channel;
 use App\Enums\PriceType;
+use App\Support\Traits\Auditable;
 use App\Support\Traits\BelongsToStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductPrice extends Model
 {
-    use BelongsToStore, HasFactory;
+    use Auditable, BelongsToStore, HasFactory;
 
     protected $guarded = ['id'];
 
@@ -41,6 +42,7 @@ class ProductPrice extends Model
         return $this->belongsTo(CustomerGroup::class);
     }
 
+    /** @return BelongsTo<Unit, $this> */
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);

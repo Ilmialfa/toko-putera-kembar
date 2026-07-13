@@ -3,6 +3,13 @@ import L from 'leaflet';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
+import {
+    CreditCard,
+    MapPin,
+    PackageCheck,
+    ShieldCheck,
+    TicketPercent,
+} from 'lucide-react';
 import React, { useState } from 'react';
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
 
@@ -25,7 +32,7 @@ function LocationPicker({ position, setPosition }: any) {
     return position ? <Marker position={position} /> : null;
 }
 
-export default function Checkout({ cart, store, addresses }: any) {
+export default function Checkout({ store, addresses, items, subtotal }: any) {
     const { auth } = usePage().props as any;
     const [selectedAddressId, setSelectedAddressId] = useState<number | ''>('');
     const [position, setPosition] = useState<[number, number] | null>(null);
@@ -33,21 +40,17 @@ export default function Checkout({ cart, store, addresses }: any) {
         recipient_name: auth.customer?.name || '',
         phone: auth.customer?.phone || '',
         full_address: '',
+        payment_method: 'bank_transfer',
+        voucher_code: '',
     });
-
-    const items = cart?.items || [];
-    const subtotal = items.reduce((acc: number, item: any) => {
-        const price =
-            item.product.prices?.find((p: any) => p.price_type === 'retail')
-                ?.price || 10000;
-
-        return acc + price * item.qty;
-    }, 0);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const data: any = { payment_method: 'bank_transfer' };
+        const data: any = {
+            payment_method: formData.payment_method,
+            voucher_code: formData.voucher_code || null,
+        };
 
         if (selectedAddressId) {
             data.address_id = selectedAddressId;
@@ -67,18 +70,30 @@ export default function Checkout({ cart, store, addresses }: any) {
 
     return (
         <StorefrontLayout title="Checkout">
-            <div className="container mx-auto max-w-5xl px-4 py-8">
-                <h1 className="mb-6 text-2xl font-bold">Checkout</h1>
+            <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+                <div className="mb-8 rounded-3xl bg-stone-950 px-6 py-7 text-white md:px-9">
+                    <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
+                        Checkout aman
+                    </p>
+                    <h1 className="mt-2 text-3xl font-bold tracking-tight">
+                        Selesaikan pesanan Anda
+                    </h1>
+                    <p className="mt-2 max-w-2xl text-sm text-stone-400">
+                        Harga dihitung ulang oleh sistem berdasarkan satuan,
+                        jumlah, dan promo yang berlaku.
+                    </p>
+                </div>
 
                 <form
                     onSubmit={handleSubmit}
-                    className="grid grid-cols-1 gap-8 md:grid-cols-3"
+                    className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr_360px]"
                 >
-                    <div className="space-y-6 md:col-span-2">
+                    <div className="space-y-6">
                         {/* Address Selection */}
-                        <div className="rounded-xl border bg-card p-6">
-                            <h2 className="mb-4 text-lg font-semibold">
-                                Informasi Pengiriman
+                        <div className="rounded-3xl border bg-card p-5 shadow-sm md:p-7">
+                            <h2 className="mb-5 flex items-center gap-2 text-lg font-bold">
+                                <MapPin className="size-5 text-lime-600" />{' '}
+                                Informasi pengiriman
                             </h2>
 
                             {addresses && addresses.length > 0 && (
@@ -147,7 +162,7 @@ export default function Checkout({ cart, store, addresses }: any) {
 
                             {selectedAddressId === '' && (
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-4 sm:grid-cols-2">
                                         <div>
                                             <label className="mb-1 block text-sm font-medium">
                                                 Nama Penerima
@@ -210,7 +225,19 @@ export default function Checkout({ cart, store, addresses }: any) {
                                         </label>
                                         <div className="relative z-0 h-64 overflow-hidden rounded-md bg-secondary">
                                             <MapContainer
-                                                center={[-6.2, 106.816666]}
+                                                center={
+                                                    store?.latitude &&
+                                                    store?.longitude
+                                                        ? [
+                                                              Number(
+                                                                  store.latitude,
+                                                              ),
+                                                              Number(
+                                                                  store.longitude,
+                                                              ),
+                                                          ]
+                                                        : [-6.2, 106.816666]
+                                                }
                                                 zoom={13}
                                                 style={{
                                                     height: '100%',
@@ -251,8 +278,9 @@ export default function Checkout({ cart, store, addresses }: any) {
                         </div>
 
                         {/* Order Items */}
-                        <div className="rounded-xl border bg-card p-6">
-                            <h2 className="mb-4 text-lg font-semibold">
+                        <div className="rounded-3xl border bg-card p-5 shadow-sm md:p-7">
+                            <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
+                                <PackageCheck className="size-5 text-lime-600" />{' '}
                                 Pesanan Anda
                             </h2>
                             <div className="space-y-4">
@@ -266,18 +294,21 @@ export default function Checkout({ cart, store, addresses }: any) {
                                                 {item.product.name}
                                             </div>
                                             <div className="text-sm text-muted-foreground">
-                                                {item.qty} x {item.unit?.name}
+                                                {item.qty} × {item.unit?.name} ·
+                                                Rp{' '}
+                                                {Number(
+                                                    item.quote.unit_price,
+                                                ).toLocaleString('id-ID')}
+                                                /
+                                                {item.unit?.symbol ||
+                                                    item.unit?.name}
                                             </div>
                                         </div>
                                         <div className="font-medium">
                                             Rp{' '}
-                                            {(
-                                                (item.product.prices?.find(
-                                                    (p: any) =>
-                                                        p.price_type ===
-                                                        'retail',
-                                                )?.price || 10000) * item.qty
-                                            ).toLocaleString()}
+                                            {Number(
+                                                item.quote.subtotal,
+                                            ).toLocaleString('id-ID')}
                                         </div>
                                     </div>
                                 ))}
@@ -286,11 +317,11 @@ export default function Checkout({ cart, store, addresses }: any) {
                     </div>
 
                     <div>
-                        <div className="sticky top-24 rounded-xl border bg-card p-6">
+                        <div className="sticky top-24 rounded-3xl border bg-card p-6 shadow-sm">
                             <h3 className="mb-4 text-lg font-semibold">
                                 Ringkasan Pesanan
                             </h3>
-                            <div className="mb-2 flex justify-between">
+                            <div className="mb-4 flex justify-between">
                                 <span className="text-muted-foreground">
                                     Total Item
                                 </span>
@@ -302,11 +333,51 @@ export default function Checkout({ cart, store, addresses }: any) {
                                 </span>
                                 <span>Rp {subtotal.toLocaleString()}</span>
                             </div>
-                            <div className="mb-4 flex justify-between">
-                                <span className="text-muted-foreground">
-                                    Ongkos Kirim
+                            <label className="mb-4 block">
+                                <span className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                    <TicketPercent className="size-4" /> Voucher
+                                    promo
                                 </span>
-                                <span>Menyusul</span>
+                                <input
+                                    className="h-11 w-full rounded-xl border bg-background px-3 text-sm uppercase"
+                                    value={formData.voucher_code}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            voucher_code: e.target.value,
+                                        })
+                                    }
+                                    placeholder="KODEPROMO"
+                                />
+                            </label>
+                            <label className="mb-4 block">
+                                <span className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                    <CreditCard className="size-4" /> Metode
+                                    pembayaran
+                                </span>
+                                <select
+                                    className="h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                    value={formData.payment_method}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            payment_method: e.target.value,
+                                        })
+                                    }
+                                >
+                                    <option value="bank_transfer">
+                                        Transfer bank
+                                    </option>
+                                    <option value="e_wallet">
+                                        Dompet digital
+                                    </option>
+                                </select>
+                            </label>
+                            <div className="mb-4 flex justify-between text-sm">
+                                <span className="text-muted-foreground">
+                                    Ongkos kirim
+                                </span>
+                                <span>Dihitung saat konfirmasi</span>
                             </div>
                             <div className="mt-4 flex justify-between border-t pt-4 text-lg font-bold">
                                 <span>Total Tagihan</span>
@@ -315,10 +386,15 @@ export default function Checkout({ cart, store, addresses }: any) {
 
                             <button
                                 type="submit"
-                                className="mt-6 w-full rounded-full bg-primary py-3 text-center font-bold text-primary-foreground transition-opacity hover:opacity-90"
+                                className="mt-6 min-h-12 w-full rounded-xl bg-lime-400 py-3 text-center font-bold text-stone-950 transition hover:bg-lime-300 disabled:opacity-50"
                             >
                                 Buat Pesanan
                             </button>
+                            <p className="mt-4 flex gap-2 text-xs leading-5 text-muted-foreground">
+                                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />{' '}
+                                Pesanan belum memotong stok sebelum pembayaran
+                                dikonfirmasi.
+                            </p>
                         </div>
                     </div>
                 </form>

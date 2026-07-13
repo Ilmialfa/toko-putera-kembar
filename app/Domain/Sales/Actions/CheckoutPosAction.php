@@ -5,12 +5,12 @@ namespace App\Domain\Sales\Actions;
 use App\Domain\Catalog\Services\PriceResolutionService;
 use App\Domain\Inventory\Services\FifoAllocationService;
 use App\Domain\Promotion\Services\LoyaltyPointService;
+use App\Domain\Promotion\Services\PromotionEngine;
 use App\Domain\Sales\Events\SaleCompleted;
 use App\Enums\ProductType;
 use App\Models\CashierShift;
 use App\Models\Product;
 use App\Models\ProductUnit;
-use App\Models\Promotion;
 use App\Models\PromotionUsage;
 use App\Models\Sale;
 use App\Models\User;
@@ -23,6 +23,7 @@ class CheckoutPosAction
         private FifoAllocationService $fifoService,
         private LoyaltyPointService $loyaltyService,
         private PriceResolutionService $priceResolutionService,
+        private PromotionEngine $promotionEngine,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -38,10 +39,38 @@ class CheckoutPosAction
                 ->firstOrFail();
             $preparedItems = $this->prepareItems($data['items'], $storeId);
             $subtotal = round((float) collect($preparedItems)->sum('gross'), 2);
+            $manualItemDiscount = round((float) collect($preparedItems)->sum('discount_amount'), 2);
+            $promotionResult = $this->promotionEngine->calculate(
+                $storeId,
+                'pos',
+                collect($preparedItems)->map(fn (array $item): array => [
+                    'product_id' => $item['product']->id,
+                    'category_id' => $item['product']->category_id,
+                    'brand_id' => $item['product']->brand_id,
+                    'qty' => $item['qty'],
+                    'price_per_unit' => $item['price_per_unit'],
+                    'subtotal' => $item['gross'],
+                ])->all(),
+                max(0, $subtotal - $manualItemDiscount),
+                $data['voucher_code'] ?? null,
+                $data['customer_id'] ?? null,
+            );
+
+            foreach ($preparedItems as $index => &$preparedItem) {
+                $promotionDiscount = (float) ($promotionResult['items'][$index]['discount_amount'] ?? 0);
+                $preparedItem['discount_amount'] = round((float) $preparedItem['discount_amount'] + $promotionDiscount, 2);
+                $preparedItem['subtotal'] = round($preparedItem['gross'] - $preparedItem['discount_amount'], 2);
+            }
+            unset($preparedItem);
+
+            foreach ($promotionResult['free_items'] as $freeItem) {
+                $preparedItems[] = $this->prepareFreeItem($freeItem, $storeId);
+            }
+
+            $subtotal = round((float) collect($preparedItems)->sum('gross'), 2);
             $itemDiscount = round((float) collect($preparedItems)->sum('discount_amount'), 2);
             $globalDiscount = min((float) ($data['discount_total'] ?? 0), max(0, $subtotal - $itemDiscount));
-            $promotionAllowance = $this->promotionAllowance($data['applied_promotions'] ?? [], $storeId);
-            $manualDiscount = max(0, $itemDiscount + $globalDiscount - $promotionAllowance);
+            $manualDiscount = max(0, $manualItemDiscount + $globalDiscount);
 
             if (! $user->can('pos.discount.override_limit') && $manualDiscount > round($subtotal * 0.10, 2)) {
                 throw ValidationException::withMessages(['discount_total' => 'Diskon manual di atas 10% memerlukan persetujuan admin.']);
@@ -117,7 +146,7 @@ class CheckoutPosAction
                 }
             }
 
-            foreach ($data['applied_promotions'] ?? [] as $promotion) {
+            foreach ($promotionResult['applied_promotions'] as $promotion) {
                 PromotionUsage::create([
                     'promotion_id' => $promotion['promotion_id'],
                     'voucher_id' => $promotion['voucher_id'] ?? null,
@@ -130,10 +159,15 @@ class CheckoutPosAction
             }
 
             if (! empty($data['customer_id']) && $totalAmount > 0) {
-                $points = (int) floor($totalAmount / 10000);
+                $points = (int) floor(($totalAmount / 10000) * $promotionResult['point_multiplier']);
 
                 if ($points > 0) {
                     $this->loyaltyService->earn((int) $data['customer_id'], $points, Sale::class, $sale->id, "Diperoleh dari {$sale->sale_number}");
+                }
+
+                $cashbackPoints = (int) floor($promotionResult['cashback_total'] / 1000);
+                if ($cashbackPoints > 0) {
+                    $this->loyaltyService->earn((int) $data['customer_id'], $cashbackPoints, Sale::class, $sale->id, "Cashback dari {$sale->sale_number}");
                 }
             }
 
@@ -195,28 +229,26 @@ class CheckoutPosAction
         return (float) $conversion;
     }
 
-    /** @param array<int, array<string, mixed>> $promotions */
-    private function promotionAllowance(array $promotions, int $storeId): float
+    /** @param array<string, mixed> $freeItem @return array<string, mixed> */
+    private function prepareFreeItem(array $freeItem, int $storeId): array
     {
-        $allowance = 0.0;
-
-        foreach ($promotions as $promotionData) {
-            $promotion = Promotion::query()
-                ->whereKey($promotionData['promotion_id'])
-                ->where('store_id', $storeId)
-                ->where('is_active', true)
-                ->where('start_date', '<=', now())
-                ->where('end_date', '>=', now())
-                ->first();
-
-            if ($promotion === null) {
-                throw ValidationException::withMessages(['applied_promotions' => 'Promo tidak aktif atau tidak valid.']);
-            }
-
-            $allowance += (float) $promotionData['amount'];
+        $product = Product::query()->lockForUpdate()->findOrFail($freeItem['product_id']);
+        $price = $this->priceResolutionService->resolve($product, $storeId, (int) $product->base_unit_id, (float) $freeItem['qty']);
+        if ($price === null) {
+            throw ValidationException::withMessages(['promotion' => "Harga produk gratis {$product->name} belum dikonfigurasi."]);
         }
+        $gross = round((float) $price->price * (float) $freeItem['qty'], 2);
 
-        return round($allowance, 2);
+        return [
+            'product' => $product,
+            'unit_id' => (int) $product->base_unit_id,
+            'qty' => (float) $freeItem['qty'],
+            'base_qty' => (float) $freeItem['qty'],
+            'price_per_unit' => (float) $price->price,
+            'gross' => $gross,
+            'discount_amount' => $gross,
+            'subtotal' => 0.0,
+        ];
     }
 
     /** @param array<string, mixed> $data */

@@ -30,6 +30,7 @@ class SupplierReturn extends Model
         return $this->belongsTo(StockIn::class);
     }
 
+    /** @return HasMany<SupplierReturnItem, $this> */
     public function items(): HasMany
     {
         return $this->hasMany(SupplierReturnItem::class);

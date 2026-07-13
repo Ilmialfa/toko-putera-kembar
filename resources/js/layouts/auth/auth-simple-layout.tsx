@@ -1,5 +1,10 @@
 import { Link } from '@inertiajs/react';
-import AppLogoIcon from '@/components/app-logo-icon';
+import {
+    BadgeCheck,
+    BarChart3,
+    PackageCheck,
+    ShoppingBasket,
+} from 'lucide-react';
 import type { AuthLayoutProps } from '@/types';
 
 export default function AuthSimpleLayout({
@@ -8,30 +13,79 @@ export default function AuthSimpleLayout({
     description,
 }: AuthLayoutProps) {
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm">
-                <div className="flex flex-col gap-8">
-                    <div className="flex flex-col items-center gap-4">
-                        <Link
-                            href="/"
-                            className="flex flex-col items-center gap-2 font-medium"
-                        >
-                            <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-md">
-                                <AppLogoIcon className="size-9 fill-current text-[var(--foreground)] dark:text-white" />
-                            </div>
-                            <span className="sr-only">{title}</span>
-                        </Link>
-
-                        <div className="space-y-2 text-center">
-                            <h1 className="text-xl font-medium">{title}</h1>
-                            <p className="text-center text-sm text-muted-foreground">
-                                {description}
-                            </p>
-                        </div>
+        <div className="grid min-h-svh bg-[#f7f5ef] lg:grid-cols-[1.08fr_0.92fr]">
+            <section className="relative hidden overflow-hidden bg-stone-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+                <div className="absolute -top-32 -right-24 size-96 rounded-full bg-lime-400/20 blur-3xl" />
+                <Link
+                    href="/"
+                    className="relative flex items-center gap-3 font-bold"
+                >
+                    <span className="grid size-11 place-items-center rounded-2xl bg-lime-400 text-stone-950">
+                        <ShoppingBasket className="size-6" />
+                    </span>
+                    <span>Toko Putera Kembar</span>
+                </Link>
+                <div className="relative max-w-xl">
+                    <p className="text-xs font-bold tracking-[0.2em] text-lime-400 uppercase">
+                        Retail operating system
+                    </p>
+                    <h2 className="mt-4 text-5xl leading-[1.08] font-bold tracking-tight">
+                        Satu pusat kendali untuk toko yang tumbuh.
+                    </h2>
+                    <p className="mt-5 text-base leading-7 text-stone-400">
+                        Pantau penjualan, stok, pesanan online, promo, dan
+                        keuangan dalam pengalaman kerja yang lebih tenang.
+                    </p>
+                    <div className="mt-9 grid grid-cols-3 gap-3 text-xs">
+                        <Feature icon={BarChart3} label="Insight real-time" />
+                        <Feature icon={PackageCheck} label="Stok terkendali" />
+                        <Feature icon={BadgeCheck} label="Akses aman" />
+                    </div>
+                </div>
+                <p className="relative text-xs text-stone-500">
+                    Backoffice internal · Toko Putera Kembar
+                </p>
+            </section>
+            <section className="flex items-center justify-center p-5 sm:p-10">
+                <div className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-7 shadow-[0_25px_80px_-35px_rgba(28,25,23,.35)] sm:p-9">
+                    <Link
+                        href="/"
+                        className="mb-8 flex items-center gap-3 font-bold lg:hidden"
+                    >
+                        <span className="grid size-10 place-items-center rounded-xl bg-lime-400">
+                            <ShoppingBasket className="size-5" />
+                        </span>
+                        Toko Putera Kembar
+                    </Link>
+                    <div className="mb-8">
+                        <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
+                            Akses staf
+                        </p>
+                        <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-950">
+                            {title}
+                        </h1>
+                        <p className="mt-2 text-sm text-stone-500">
+                            {description}
+                        </p>
                     </div>
                     {children}
                 </div>
-            </div>
+            </section>
+        </div>
+    );
+}
+
+function Feature({
+    icon: Icon,
+    label,
+}: {
+    icon: typeof BarChart3;
+    label: string;
+}) {
+    return (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <Icon className="mb-3 size-5 text-lime-400" />
+            <span className="text-stone-300">{label}</span>
         </div>
     );
 }

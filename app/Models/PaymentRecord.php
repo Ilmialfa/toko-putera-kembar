@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class PaymentRecord extends Model
 {
@@ -20,17 +22,20 @@ class PaymentRecord extends Model
         'paid_at' => 'datetime',
     ];
 
-    public function payable()
+    /** @return MorphTo<Model, $this> */
+    public function payable(): MorphTo
     {
         return $this->morphTo();
     }
 
-    public function cashAccount()
+    /** @return BelongsTo<CashAccount, $this> */
+    public function cashAccount(): BelongsTo
     {
         return $this->belongsTo(CashAccount::class);
     }
 
-    public function creator()
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }

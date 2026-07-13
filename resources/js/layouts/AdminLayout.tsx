@@ -25,6 +25,10 @@ import {
     Truck,
     Box,
     ShoppingBag,
+    ClipboardList,
+    WalletCards,
+    ShieldCheck,
+    Users,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import {
@@ -59,6 +63,7 @@ interface NavItem {
     href?: string;
     icon?: React.ElementType;
     children?: NavItem[];
+    permission?: string;
 }
 
 const navigation: NavItem[] = [
@@ -71,15 +76,18 @@ const navigation: NavItem[] = [
         label: 'POS & Kasir',
         href: '/admin/pos',
         icon: ShoppingCart,
+        permission: 'pos.use',
     },
     {
         label: 'Pesanan Online',
         href: '/admin/orders',
         icon: ShoppingBag,
+        permission: 'orders.view',
     },
     {
         label: 'Master Data',
         icon: Package,
+        permission: 'products.view',
         children: [
             { label: 'Produk', href: '/admin/master/products', icon: Box },
             {
@@ -95,11 +103,22 @@ const navigation: NavItem[] = [
     {
         label: 'Inventory',
         icon: Warehouse,
+        permission: 'inventory.view',
         children: [
+            {
+                label: 'Data Pegawai',
+                href: '/admin/hr/employees',
+                icon: Users,
+            },
             {
                 label: 'Barang Masuk',
                 href: '/admin/inventory/stock-ins',
                 icon: TrendingUp,
+            },
+            {
+                label: 'PO & Operasional Stok',
+                href: '/admin/inventory/operations',
+                icon: ClipboardList,
             },
             {
                 label: 'Supplier',
@@ -121,6 +140,7 @@ const navigation: NavItem[] = [
     {
         label: 'Promosi',
         icon: Megaphone,
+        permission: 'promotions.view',
         children: [
             {
                 label: 'Daftar Promo',
@@ -137,11 +157,17 @@ const navigation: NavItem[] = [
     {
         label: 'Keuangan',
         icon: DollarSign,
+        permission: 'finance.view',
         children: [
             {
                 label: 'Kas & Pengeluaran',
                 href: '/admin/finance/expenses',
                 icon: Receipt,
+            },
+            {
+                label: 'Kas, Bank & Hutang',
+                href: '/admin/finance/operations',
+                icon: WalletCards,
             },
             {
                 label: 'Piutang & Hutang',
@@ -158,6 +184,7 @@ const navigation: NavItem[] = [
     {
         label: 'HR & Absensi',
         icon: CalendarCheck,
+        permission: 'hr.view',
         children: [
             {
                 label: 'Rekap Absensi',
@@ -169,10 +196,30 @@ const navigation: NavItem[] = [
     {
         label: 'CMS & Konten',
         icon: FileText,
+        permission: 'cms.view',
         children: [
             { label: 'Halaman', href: '/admin/cms/pages', icon: FileText },
             { label: 'Blog', href: '/admin/cms/blogs', icon: BookOpen },
             { label: 'FAQ', href: '/admin/cms/faqs', icon: HelpCircle },
+        ],
+    },
+    {
+        label: 'Akses & Pengguna',
+        icon: ShieldCheck,
+        permission: 'users.view',
+        children: [
+            {
+                label: 'Pengguna',
+                href: '/admin/access/users',
+                icon: Users,
+                permission: 'users.view',
+            },
+            {
+                label: 'Role & Permission',
+                href: '/admin/access/roles',
+                icon: ShieldCheck,
+                permission: 'roles.manage',
+            },
         ],
     },
 ];
@@ -254,6 +301,19 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     const page = usePage();
     const pathname = window.location.pathname;
     const auth = (page.props as any).auth;
+    const permissions: string[] = auth?.user?.permissions ?? [];
+    const visibleNavigation = navigation
+        .filter(
+            (item) => !item.permission || permissions.includes(item.permission),
+        )
+        .map((item) => ({
+            ...item,
+            children: item.children?.filter(
+                (child) =>
+                    !child.permission || permissions.includes(child.permission),
+            ),
+        }))
+        .filter((item) => !item.children || item.children.length > 0);
 
     return (
         <SidebarProvider>
@@ -279,7 +339,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                         <SidebarGroup>
                             <SidebarGroupContent>
                                 <SidebarMenu>
-                                    {navigation.map((item) => (
+                                    {visibleNavigation.map((item) => (
                                         <NavMenuItem
                                             key={item.label}
                                             item={item}

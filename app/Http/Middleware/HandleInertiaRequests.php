@@ -36,6 +36,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $userPayload = null;
+        if ($user !== null) {
+            $user->loadMissing('roles:id,name');
+            $userPayload = [
+                ...$user->only(['id', 'name', 'email', 'avatar_path', 'is_active', 'must_change_password']),
+                'roles' => $user->roles->pluck('name')->values(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->values(),
+            ];
+        }
+
         $cartCount = 0;
         if ($request->isMethod('GET')) {
             if (auth('customer')->check()) {
@@ -55,7 +66,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $userPayload,
                 'customer' => auth('customer')->user(),
             ],
             'cart_count' => $cartCount,

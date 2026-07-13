@@ -2,11 +2,15 @@
 
 namespace App\Domain\Storefront\Controllers;
 
+use App\Domain\Catalog\Services\PriceResolutionService;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CartController extends Controller
 {
@@ -27,15 +31,30 @@ class CartController extends Controller
         return $cart;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, PriceResolutionService $priceResolutionService)
     {
         $cart = $this->resolveCart($request);
-        $cart->load(['items.product.images', 'items.unit']);
+        $cart->load(['items.product.images', 'items.product.baseUnit', 'items.product.productUnits', 'items.unit']);
 
-        return inertia('storefront/Cart', ['cart' => $cart]);
+        $customerGroupId = auth('customer')->user()?->customer_group_id;
+        $items = $cart->items->map(function (CartItem $item) use ($priceResolutionService, $customerGroupId): array {
+            $quote = $priceResolutionService->quote($item->product, (int) $item->product->store_id, (int) $item->unit_id, (float) $item->qty, $customerGroupId, 'online');
+            $image = $item->product->images->sortBy('display_order')->first();
+
+            return [
+                'id' => $item->id,
+                'qty' => (float) $item->qty,
+                'unit' => $item->unit?->only(['id', 'name', 'symbol']),
+                'product' => $item->product->only(['id', 'name', 'slug', 'sku', 'stock_status']),
+                'image_url' => $image ? Storage::disk('public')->url($image->path) : null,
+                'quote' => $quote,
+            ];
+        });
+
+        return inertia('storefront/Cart', ['cart' => ['id' => $cart->id, 'items' => $items]]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, PriceResolutionService $priceResolutionService)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
@@ -44,6 +63,12 @@ class CartController extends Controller
         ]);
 
         $cart = $this->resolveCart($request);
+        $product = Product::query()->where('is_active', true)->where('sellable_online', true)->findOrFail($validated['product_id']);
+        try {
+            $priceResolutionService->quote($product, (int) $product->store_id, (int) $validated['unit_id'], (float) $validated['qty'], auth('customer')->user()?->customer_group_id, 'online');
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['unit_id' => $exception->getMessage()]);
+        }
 
         $item = $cart->items()->where('product_id', $validated['product_id'])
             ->where('unit_id', $validated['unit_id'])

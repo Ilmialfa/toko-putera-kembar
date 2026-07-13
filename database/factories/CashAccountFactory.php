@@ -18,7 +18,10 @@ class CashAccountFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => 'Kas '.fake()->unique()->word(),
+            'type' => 'cash',
+            'account_number' => null,
+            'is_active' => true,
         ];
     }
 }

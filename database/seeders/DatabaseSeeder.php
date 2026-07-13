@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\Brand;
 use App\Models\CashAccount;
 use App\Models\Category;
+use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\Employee;
 use App\Models\ExpenseCategory;
 use App\Models\Product;
@@ -45,6 +47,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Owner Putera Kembar',
                 'password' => Hash::make('password123'),
                 'store_id' => 1,
+                'email_verified_at' => now(),
             ]
         );
         $owner->syncRoles('Owner');
@@ -55,6 +58,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Admin Sistem',
                 'password' => Hash::make('password123'),
                 'store_id' => 1,
+                'email_verified_at' => now(),
             ]
         );
         $admin->syncRoles('Admin');
@@ -65,9 +69,50 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Budi Kasir',
                 'password' => Hash::make('password123'),
                 'store_id' => 1,
+                'email_verified_at' => now(),
             ]
         );
         $kasir->syncRoles('Kasir');
+
+        $staffGudang = User::firstOrCreate(
+            ['email' => 'gudang@puterakembar.com'],
+            [
+                'name' => 'Siti Staff Gudang',
+                'password' => Hash::make('password123'),
+                'store_id' => 1,
+                'email_verified_at' => now(),
+            ]
+        );
+        $staffGudang->syncRoles('Staff Gudang');
+
+        $staffOnline = User::firstOrCreate(
+            ['email' => 'online@puterakembar.com'],
+            [
+                'name' => 'Rani Staff Online',
+                'password' => Hash::make('password123'),
+                'store_id' => 1,
+                'email_verified_at' => now(),
+            ]
+        );
+        $staffOnline->syncRoles('Staff Online');
+
+        $memberGroup = CustomerGroup::firstOrCreate(
+            ['store_id' => 1, 'name' => 'Member'],
+            ['discount_percent' => 2.5, 'is_active' => true],
+        );
+
+        Customer::firstOrCreate(
+            ['email' => 'pelanggan@puterakembar.com'],
+            [
+                'name' => 'Pelanggan Demo',
+                'phone' => '081234567890',
+                'password' => Hash::make('password123'),
+                'customer_group_id' => $memberGroup->id,
+                'is_guest' => false,
+                'email_verified_at' => now(),
+                'phone_verified_at' => now(),
+            ],
+        );
 
         // ═══════════════════════════════════
         // MASTER DATA
@@ -78,6 +123,7 @@ class DatabaseSeeder extends Seeder
         $lusin = Unit::firstOrCreate(['name' => 'Lusin'], ['symbol' => 'lsn', 'is_active' => true]);
         $dus = Unit::firstOrCreate(['name' => 'Dus'], ['symbol' => 'dus', 'is_active' => true]);
         $kg = Unit::firstOrCreate(['name' => 'Kg'], ['symbol' => 'kg',  'is_active' => true]);
+        $ons = Unit::firstOrCreate(['name' => 'Ons'], ['symbol' => 'ons', 'is_active' => true]);
         $rntng = Unit::firstOrCreate(['name' => 'Renteng'], ['symbol' => 'rtg', 'is_active' => true]);
 
         // Categories
@@ -225,19 +271,22 @@ class DatabaseSeeder extends Seeder
                 'wholesale_price' => 3500,
             ],
             [
-                'name' => 'Beras Premium 5 Kg',
+                'name' => 'Beras Curah Premium',
                 'category_id' => $catSembako->id,
                 'brand_id' => null,
-                'base_unit_id' => $pcs->id,
+                'base_unit_id' => $kg->id,
+                'online_display_unit_id' => $ons->id,
+                'display_price_prefix' => 'exact',
                 'sku' => 'SMB-000001',
-                'slug' => 'beras-premium-5kg',
-                'description_short' => 'Beras premium pulen, wangi, putih bersih 5 kg.',
-                'hpp_current' => 55000,
-                'stok_saat_ini' => 100,
-                'min_stock' => 20,
-                'units' => [],
-                'retail_price' => 65000,
-                'wholesale_price' => 60000,
+                'slug' => 'beras-curah-premium',
+                'description_short' => 'Beras curah premium pulen dan bersih, dapat dibeli mulai satu ons.',
+                'hpp_current' => 25000,
+                'stok_saat_ini' => 150,
+                'min_stock' => 25,
+                'units' => [['unit_id' => $ons->id, 'conversion_qty' => 0.1]],
+                'unit_prices' => [['unit_id' => $ons->id, 'price' => 3000]],
+                'retail_price' => 30000,
+                'wholesale_price' => 28000,
             ],
             [
                 'name' => 'Gula Pasir 1 Kg',
@@ -318,11 +367,15 @@ class DatabaseSeeder extends Seeder
 
         foreach ($productsData as $prodData) {
             $units = $prodData['units'];
+            $unitPrices = $prodData['unit_prices'] ?? [];
             $retailPrice = $prodData['retail_price'];
             $wholesalePrice = $prodData['wholesale_price'];
-            unset($prodData['units'], $prodData['retail_price'], $prodData['wholesale_price']);
+            unset($prodData['units'], $prodData['unit_prices'], $prodData['retail_price'], $prodData['wholesale_price']);
 
-            $product = Product::firstOrCreate(
+            $prodData['online_display_unit_id'] ??= $prodData['base_unit_id'];
+            $prodData['display_price_prefix'] ??= 'exact';
+
+            $product = Product::updateOrCreate(
                 ['sku' => $prodData['sku']],
                 array_merge($prodData, [
                     'default_warehouse_id' => $gudang->id,
@@ -384,6 +437,23 @@ class DatabaseSeeder extends Seeder
                     'is_active' => true,
                 ]
             );
+
+            foreach ($unitPrices as $unitPrice) {
+                ProductPrice::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'store_id' => 1,
+                        'unit_id' => $unitPrice['unit_id'],
+                        'price_type' => 'retail',
+                        'min_qty' => 1,
+                    ],
+                    [
+                        'price' => $unitPrice['price'],
+                        'channel' => 'both',
+                        'is_active' => true,
+                    ],
+                );
+            }
         }
     }
 

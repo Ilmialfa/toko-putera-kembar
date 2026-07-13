@@ -25,6 +25,7 @@ class SupplierReturnItem extends Model
         return $this->belongsTo(SupplierReturn::class);
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

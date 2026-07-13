@@ -78,7 +78,7 @@ interface CheckoutPayload {
         discount_amount: number;
     }>;
     payments: Array<{ method: string; amount: number }>;
-    applied_promotions: AppliedPromotion[];
+    voucher_code: string | null;
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -98,6 +98,7 @@ export default function PosIndex({ currentShift }: any) {
 
     // Promo/Voucher states
     const [voucherCode, setVoucherCode] = useState('');
+    const [validatedVoucherCode, setValidatedVoucherCode] = useState('');
     const [appliedPromotions, setAppliedPromotions] = useState<
         AppliedPromotion[]
     >([]);
@@ -124,7 +125,7 @@ export default function PosIndex({ currentShift }: any) {
         warehouse_id: 0,
         items: [],
         payments: [],
-        applied_promotions: [],
+        voucher_code: null,
     });
 
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -289,6 +290,7 @@ export default function PosIndex({ currentShift }: any) {
                     ];
                 });
                 setVoucherCode('');
+                setValidatedVoucherCode(voucherCode.toUpperCase());
                 toast.success('Voucher berhasil diterapkan.');
             }
         } catch {
@@ -298,6 +300,7 @@ export default function PosIndex({ currentShift }: any) {
 
     const removePromo = (index: number) => {
         setAppliedPromotions((prev) => prev.filter((_, i) => i !== index));
+        setValidatedVoucherCode('');
     };
 
     const processCheckout = async () => {
@@ -312,7 +315,7 @@ export default function PosIndex({ currentShift }: any) {
         try {
             const payload: CheckoutPayload = {
                 cashier_shift_id: currentShift.id,
-                discount_total: discountTotal,
+                discount_total: 0,
                 tax_total: 0,
                 payment_status: 'paid',
                 warehouse_id: cart[0]?.default_warehouse_id ?? 1,
@@ -329,13 +332,14 @@ export default function PosIndex({ currentShift }: any) {
                             paymentMethod === 'cash' ? paidAmount : totalAmount,
                     },
                 ],
-                applied_promotions: appliedPromotions,
+                voucher_code: validatedVoucherCode || null,
             };
             checkoutRequest.transform(() => payload);
             const response = await checkoutRequest.post(checkoutStore.url());
             toast.success(`Transaksi ${response.sale.sale_number} berhasil.`);
             setCart([]);
             setAppliedPromotions([]);
+            setValidatedVoucherCode('');
             setIsCheckoutModalOpen(false);
             setPaidAmount(0);
         } catch {

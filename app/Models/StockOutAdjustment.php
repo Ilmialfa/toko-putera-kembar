@@ -26,6 +26,7 @@ class StockOutAdjustment extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

@@ -32,6 +32,7 @@ class AttendanceController extends Controller
 
         return Inertia::render('attendance/Index', [
             'employees' => $employees,
+            'serverTime' => now()->toIso8601String(),
         ]);
     }
 

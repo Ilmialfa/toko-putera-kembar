@@ -3,19 +3,25 @@
 namespace App\Domain\Catalog\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Catalog\SaveProductRequest;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\CustomerGroup;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ProductController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         $search = $request->input('search');
         $categoryId = $request->input('category_id');
@@ -47,7 +53,7 @@ class ProductController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(): Response
     {
         return Inertia::render('admin/catalog/products/Form', [
             'categories' => Category::where('is_active', true)->get(['id', 'name']),
@@ -55,62 +61,24 @@ class ProductController extends Controller
             'units' => Unit::where('is_active', true)->get(['id', 'name']),
             'suppliers' => Supplier::where('is_active', true)->get(['id', 'name']),
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name']),
+            'customerGroups' => CustomerGroup::where('is_active', true)->get(['id', 'name']),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(SaveProductRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'sku' => 'nullable|string|max:100|unique:products,sku',
-            'category_id' => 'required|exists:categories,id',
-            'brand_id' => 'nullable|exists:brands,id',
-            'default_warehouse_id' => 'required|exists:warehouses,id',
-            'primary_supplier_id' => 'nullable|exists:suppliers,id',
-            'base_unit_id' => 'required|exists:units,id',
-            'product_type' => 'required|string|in:physical,digital,service',
-            'costing_method' => 'required|string|in:WAC,FIFO',
-            'is_active' => 'boolean',
-            'is_sellable' => 'boolean',
-            'sellable_pos' => 'boolean',
-            'sellable_online' => 'boolean',
-            'is_preorder' => 'boolean',
-            'preorder_eta_days' => 'nullable|integer',
-            'weight_grams' => 'nullable|numeric',
-            'min_stock' => 'nullable|numeric',
-            'description_short' => 'nullable|string',
-            'barcodes' => 'nullable|array',
-            'barcodes.*.barcode' => 'required|string',
-            'barcodes.*.is_primary' => 'boolean',
-            'units' => 'nullable|array',
-            'units.*.unit_id' => 'required|exists:units,id',
-            'units.*.conversion_qty' => 'required|numeric',
-        ]);
-
-        DB::transaction(function () use ($validated) {
-            $productData = collect($validated)->except(['barcodes', 'units'])->toArray();
-
-            $product = Product::create($productData);
-
-            if (! empty($validated['barcodes'])) {
-                foreach ($validated['barcodes'] as $barcode) {
-                    $product->barcodes()->create($barcode);
-                }
-            }
-
-            if (! empty($validated['units'])) {
-                foreach ($validated['units'] as $unit) {
-                    $product->productUnits()->create($unit);
-                }
-            }
+        DB::transaction(function () use ($request): void {
+            $validated = $request->validated();
+            $product = Product::query()->create($this->productAttributes($validated, $request));
+            $this->syncRelations($product, $validated, $request);
         });
 
-        return redirect()->route('admin.catalog.products.index')->with('success', 'Product created successfully');
+        return redirect()->route('admin.master.products.index')->with('success', 'Produk berhasil dibuat.');
     }
 
-    public function edit(Product $product)
+    public function edit(Product $product): Response
     {
-        $product->load(['barcodes', 'productUnits.unit', 'images']);
+        $product->load(['barcodes', 'productUnits.unit', 'images', 'prices.unit', 'prices.customerGroup']);
 
         return Inertia::render('admin/catalog/products/Form', [
             'product' => $product,
@@ -119,65 +87,84 @@ class ProductController extends Controller
             'units' => Unit::where('is_active', true)->get(['id', 'name']),
             'suppliers' => Supplier::where('is_active', true)->get(['id', 'name']),
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name']),
+            'customerGroups' => CustomerGroup::where('is_active', true)->get(['id', 'name']),
         ]);
     }
 
-    public function update(Request $request, Product $product)
+    public function update(SaveProductRequest $request, Product $product): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'sku' => 'nullable|string|max:100|unique:products,sku,'.$product->id,
-            'category_id' => 'required|exists:categories,id',
-            'brand_id' => 'nullable|exists:brands,id',
-            'default_warehouse_id' => 'required|exists:warehouses,id',
-            'primary_supplier_id' => 'nullable|exists:suppliers,id',
-            'base_unit_id' => 'required|exists:units,id',
-            'product_type' => 'required|string|in:physical,digital,service',
-            'costing_method' => 'required|string|in:WAC,FIFO',
-            'is_active' => 'boolean',
-            'is_sellable' => 'boolean',
-            'sellable_pos' => 'boolean',
-            'sellable_online' => 'boolean',
-            'is_preorder' => 'boolean',
-            'preorder_eta_days' => 'nullable|integer',
-            'weight_grams' => 'nullable|numeric',
-            'min_stock' => 'nullable|numeric',
-            'description_short' => 'nullable|string',
-            'barcodes' => 'nullable|array',
-            'barcodes.*.barcode' => 'required|string',
-            'barcodes.*.is_primary' => 'boolean',
-            'units' => 'nullable|array',
-            'units.*.unit_id' => 'required|exists:units,id',
-            'units.*.conversion_qty' => 'required|numeric',
-        ]);
-
-        DB::transaction(function () use ($validated, $product) {
-            $productData = collect($validated)->except(['barcodes', 'units'])->toArray();
-
-            $product->update($productData);
-
-            if (isset($validated['barcodes'])) {
-                $product->barcodes()->delete();
-                foreach ($validated['barcodes'] as $barcode) {
-                    $product->barcodes()->create($barcode);
-                }
-            }
-
-            if (isset($validated['units'])) {
-                $product->productUnits()->delete();
-                foreach ($validated['units'] as $unit) {
-                    $product->productUnits()->create($unit);
-                }
-            }
+        DB::transaction(function () use ($request, $product): void {
+            $validated = $request->validated();
+            $product->update($this->productAttributes($validated, $request));
+            $this->syncRelations($product, $validated, $request);
         });
 
-        return redirect()->route('admin.catalog.products.index')->with('success', 'Product updated successfully');
+        return redirect()->route('admin.master.products.index')->with('success', 'Produk berhasil diperbarui.');
     }
 
-    public function destroy(Product $product)
+    public function destroy(Product $product): RedirectResponse
     {
         $product->delete();
 
-        return redirect()->back()->with('success', 'Product deleted successfully');
+        return redirect()->back()->with('success', 'Produk berhasil dinonaktifkan.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function productAttributes(array $validated, Request $request): array
+    {
+        return collect($validated)
+            ->except(['barcodes', 'units', 'prices', 'images', 'remove_image_ids'])
+            ->merge([
+                'online_display_unit_id' => $validated['online_display_unit_id'] ?: $validated['base_unit_id'],
+                'created_by' => $request->route('product') ? $request->route('product')->created_by : $request->user()->id,
+                'updated_by' => $request->user()->id,
+            ])
+            ->all();
+    }
+
+    /** @param array<string, mixed> $validated */
+    private function syncRelations(Product $product, array $validated, Request $request): void
+    {
+        $product->barcodes()->delete();
+        foreach ($validated['barcodes'] as $barcode) {
+            $product->barcodes()->create($barcode);
+        }
+
+        $product->productUnits()->delete();
+        foreach ($validated['units'] as $unit) {
+            $product->productUnits()->create($unit);
+        }
+
+        $product->prices()->delete();
+        foreach ($validated['prices'] as $price) {
+            $product->prices()->create([
+                ...$price,
+                'store_id' => $product->store_id,
+                'discount_amount' => 0,
+                'discount_percent' => 0,
+            ]);
+        }
+
+        $imagesToRemove = $product->images()->whereIn('id', $validated['remove_image_ids'])->get();
+        foreach ($imagesToRemove as $image) {
+            Storage::disk('public')->delete($image->path);
+            $image->delete();
+        }
+
+        $nextOrder = (int) $product->images()->max('display_order') + 1;
+        foreach ($request->file('images', []) as $uploadedImage) {
+            $product->images()->create([
+                'path' => $uploadedImage->store("products/{$product->id}", 'public'),
+                'display_order' => $nextOrder++,
+                'is_primary' => $product->images()->doesntExist(),
+            ]);
+        }
+
+        /** @var ProductImage|null $primaryImage */
+        $primaryImage = $product->images()->orderByDesc('is_primary')->orderBy('display_order')->first();
+        $product->updateQuietly(['image_primary_path' => $primaryImage?->path]);
     }
 }

@@ -40,6 +40,7 @@ class StockTransfer extends Model
         return $this->belongsTo(User::class, 'received_by');
     }
 
+    /** @return HasMany<StockTransferDetail, $this> */
     public function details(): HasMany
     {
         return $this->hasMany(StockTransferDetail::class);

@@ -61,9 +61,15 @@ class Product extends Model
         return $this->belongsTo(Supplier::class, 'primary_supplier_id');
     }
 
+    /** @return BelongsTo<Unit, $this> */
     public function baseUnit(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'base_unit_id');
+    }
+
+    public function onlineDisplayUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'online_display_unit_id');
     }
 
     public function barcodes(): HasMany
@@ -71,6 +77,7 @@ class Product extends Model
         return $this->hasMany(ProductBarcode::class);
     }
 
+    /** @return HasMany<ProductUnit, $this> */
     public function productUnits(): HasMany
     {
         return $this->hasMany(ProductUnit::class);
@@ -83,6 +90,7 @@ class Product extends Model
             ->withTimestamps();
     }
 
+    /** @return HasMany<ProductImage, $this> */
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class);
@@ -115,6 +123,7 @@ class Product extends Model
         return $this->hasMany(RelatedProduct::class, 'product_id');
     }
 
+    /** @return HasMany<ProductPrice, $this> */
     public function prices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);

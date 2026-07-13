@@ -13,8 +13,8 @@ export default defineConfig({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
             refresh: true,
             fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
+                bunny('Plus Jakarta Sans', {
+                    weights: [400, 500, 600, 700, 800],
                 }),
             ],
         }),
@@ -36,8 +36,8 @@ export default defineConfig({
             manifest: {
                 name: 'Toko Putera Kembar',
                 short_name: 'TPK App',
-                theme_color: '#2563eb',
-                background_color: '#ffffff',
+                theme_color: '#1c1917',
+                background_color: '#f7f5ef',
                 display: 'standalone',
                 scope: '/',
                 start_url: '/',
@@ -45,16 +45,16 @@ export default defineConfig({
                     {
                         src: '/images/icon-192x192.png',
                         sizes: '192x192',
-                        type: 'image/png'
+                        type: 'image/png',
                     },
                     {
                         src: '/images/icon-512x512.png',
                         sizes: '512x512',
                         type: 'image/png',
-                        purpose: 'any maskable'
-                    }
-                ]
-            }
-        })
+                        purpose: 'any maskable',
+                    },
+                ],
+            },
+        }),
     ],
 });

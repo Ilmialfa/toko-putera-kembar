@@ -9,6 +9,50 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PriceResolutionService
 {
+    /**
+     * @return array{product_id:int,unit_id:int,unit_name:string,unit_symbol:string,quantity:float,unit_price:float,subtotal:float,price_type:string,source:string,channel:string,warning:?string}
+     */
+    public function quote(Product $product, int $storeId, int $unitId, float $quantity = 1, ?int $customerGroupId = null, string $channel = 'pos'): array
+    {
+        $isBaseUnit = $unitId === (int) $product->base_unit_id;
+        $productUnit = $isBaseUnit
+            ? null
+            : ProductUnit::query()
+                ->with('unit')
+                ->where('product_id', $product->id)
+                ->where('unit_id', $unitId)
+                ->where('is_sales_unit', true)
+                ->first();
+
+        if (! $isBaseUnit && $productUnit === null) {
+            throw new \InvalidArgumentException("Satuan penjualan {$product->name} tidak valid.");
+        }
+
+        $price = $this->resolve($product, $storeId, $unitId, $quantity, $customerGroupId, $channel);
+
+        if ($price === null) {
+            throw new \InvalidArgumentException("Harga {$product->name} belum dikonfigurasi.");
+        }
+
+        $unit = $isBaseUnit ? $product->baseUnit()->firstOrFail() : $productUnit->unit;
+        $priceType = (string) $price->getRawOriginal('price_type');
+        $unitPrice = round((float) $price->price, 2);
+
+        return [
+            'product_id' => (int) $product->id,
+            'unit_id' => $unitId,
+            'unit_name' => $unit->name,
+            'unit_symbol' => $unit->symbol,
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'subtotal' => round($unitPrice * $quantity, 2),
+            'price_type' => $priceType,
+            'source' => $price->exists ? 'configured' : 'proportional',
+            'channel' => $channel,
+            'warning' => $price->exists ? null : 'Harga dihitung proporsional dari satuan dasar.',
+        ];
+    }
+
     public function resolve(Product $product, int $storeId, int $unitId, float $quantity = 1, ?int $customerGroupId = null, string $channel = 'pos'): ?ProductPrice
     {
         $baseQuery = ProductPrice::query()

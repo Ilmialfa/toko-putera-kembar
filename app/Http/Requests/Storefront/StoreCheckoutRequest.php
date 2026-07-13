@@ -31,6 +31,7 @@ class StoreCheckoutRequest extends FormRequest
             'latitude' => ['required_without:address_id', 'numeric', 'between:-90,90'],
             'longitude' => ['required_without:address_id', 'numeric', 'between:-180,180'],
             'payment_method' => ['required', Rule::in(['bank_transfer', 'e_wallet'])],
+            'voucher_code' => ['nullable', 'string', 'max:50'],
             'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'mimetypes:image/jpeg,image/png,application/pdf', 'max:5120'],
         ];
     }

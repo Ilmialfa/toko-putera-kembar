@@ -15,7 +15,7 @@ class CheckoutPosRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('manage pos') ?? false;
+        return $this->user()?->can('pos.use') ?? false;
     }
 
     /**
@@ -32,6 +32,7 @@ class CheckoutPosRequest extends FormRequest
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'payment_status' => ['nullable', Rule::in(['paid', 'unpaid', 'partial'])],
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'voucher_code' => ['nullable', 'string', 'max:50'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.unit_id' => ['required', 'integer', 'exists:units,id'],
@@ -41,11 +42,6 @@ class CheckoutPosRequest extends FormRequest
             'payments.*.method' => ['required', Rule::in(['cash', 'qris', 'bank_transfer', 'e_wallet', 'debit_card', 'credit_card', 'piutang', 'points'])],
             'payments.*.amount' => ['required', 'numeric', 'gt:0'],
             'payments.*.reference_number' => ['nullable', 'string', 'max:100'],
-            'applied_promotions' => ['nullable', 'array'],
-            'applied_promotions.*.promotion_id' => ['required', 'integer', 'exists:promotions,id'],
-            'applied_promotions.*.voucher_id' => ['nullable', 'integer', 'exists:vouchers,id'],
-            'applied_promotions.*.amount' => ['required', 'numeric', 'min:0'],
-            'applied_promotions.*.type' => ['required', 'string', 'max:30'],
             'parked_sale_id' => ['nullable', 'integer', 'exists:sales,id'],
         ];
     }

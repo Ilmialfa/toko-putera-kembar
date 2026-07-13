@@ -3,6 +3,7 @@
 namespace App\Domain\Storefront\Actions;
 
 use App\Domain\Catalog\Services\PriceResolutionService;
+use App\Domain\Promotion\Services\PromotionEngine;
 use App\Enums\OrderStatus;
 use App\Models\Cart;
 use App\Models\CartItem;
@@ -10,6 +11,7 @@ use App\Models\CustomerAddress;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductUnit;
+use App\Models\PromotionUsage;
 use App\Models\StockReservation;
 use App\Models\StoreLocation;
 use Illuminate\Http\UploadedFile;
@@ -19,7 +21,10 @@ use RuntimeException;
 
 class CheckoutOnlineAction
 {
-    public function __construct(private PriceResolutionService $priceResolutionService) {}
+    public function __construct(
+        private PriceResolutionService $priceResolutionService,
+        private PromotionEngine $promotionEngine,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -120,9 +125,45 @@ class CheckoutOnlineAction
                 ]);
             }
 
+            $order->load('items.product');
+            $promotionResult = $this->promotionEngine->calculate(
+                $store->id,
+                'online',
+                $order->items->map(fn ($item): array => [
+                    'product_id' => $item->product_id,
+                    'category_id' => $item->product->category_id,
+                    'brand_id' => $item->product->brand_id,
+                    'qty' => (float) $item->qty,
+                    'price_per_unit' => (float) $item->price_per_unit,
+                    'subtotal' => (float) $item->subtotal,
+                ])->all(),
+                $subtotal,
+                $data['voucher_code'] ?? null,
+                $customerId,
+            );
+            foreach ($order->items as $index => $orderItem) {
+                $discount = (float) ($promotionResult['items'][$index]['discount_amount'] ?? 0);
+                $orderItem->update([
+                    'discount_amount' => $discount,
+                    'subtotal' => round((float) $orderItem->subtotal - $discount, 2),
+                ]);
+            }
+            foreach ($promotionResult['applied_promotions'] as $promotion) {
+                PromotionUsage::query()->create([
+                    'promotion_id' => $promotion['promotion_id'],
+                    'voucher_id' => $promotion['voucher_id'] ?? null,
+                    'usable_type' => Order::class,
+                    'usable_id' => $order->id,
+                    'customer_id' => $customerId,
+                    'discount_amount_applied' => $promotion['amount'],
+                    'used_at' => now(),
+                ]);
+            }
+
             $order->update([
                 'subtotal' => round($subtotal, 2),
-                'total_amount' => round($subtotal + (float) $order->delivery_fee, 2),
+                'discount_total' => $promotionResult['discount_total'],
+                'total_amount' => round($subtotal - $promotionResult['discount_total'] + (float) $order->delivery_fee, 2),
             ]);
             $order->statusHistories()->create(['status' => $order->getRawOriginal('status')]);
             CartItem::query()->where('cart_id', $cart->id)->delete();

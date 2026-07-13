@@ -9,8 +9,8 @@
 
 @theme {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Plus Jakarta Sans', 'Instrument Sans', ui-sans-serif, system-ui,
+        sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
     --radius-lg: var(--radius);
@@ -170,6 +170,15 @@
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground antialiased;
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    }
+
+    button,
+    a,
+    input,
+    select,
+    textarea {
+        @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-600;
     }
 }

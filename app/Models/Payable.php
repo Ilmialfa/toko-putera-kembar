@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Payable extends Model
 {
@@ -21,17 +23,20 @@ class Payable extends Model
         'due_date' => 'date',
     ];
 
-    public function supplier()
+    /** @return BelongsTo<Supplier, $this> */
+    public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }
 
-    public function stockIn()
+    /** @return BelongsTo<StockIn, $this> */
+    public function stockIn(): BelongsTo
     {
         return $this->belongsTo(StockIn::class);
     }
 
-    public function payments()
+    /** @return MorphMany<PaymentRecord, $this> */
+    public function payments(): MorphMany
     {
         return $this->morphMany(PaymentRecord::class, 'payable');
     }

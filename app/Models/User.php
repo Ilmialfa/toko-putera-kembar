@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -31,7 +32,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['store_id', 'name', 'email', 'phone', 'password', 'avatar_path', 'employee_id', 'is_active', 'last_login_at', 'last_login_ip', 'email_verified_at'])]
+#[Fillable(['store_id', 'name', 'email', 'phone', 'password', 'avatar_path', 'employee_id', 'is_active', 'must_change_password', 'last_login_at', 'last_login_ip', 'email_verified_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -39,6 +40,7 @@ class User extends Authenticatable implements PasskeyUser
 
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
     use HasRoles;
     use SoftDeletes;
 
@@ -51,8 +53,16 @@ class User extends Authenticatable implements PasskeyUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function employee(): HasOne
+    {
+        return $this->hasOne(Employee::class);
     }
 }
