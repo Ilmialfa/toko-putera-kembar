@@ -20,7 +20,6 @@ import {
     BookOpen,
     HelpCircle,
     LayoutList,
-    ChevronRight,
     Building2,
     Truck,
     Box,
@@ -42,6 +41,7 @@ import {
     SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -66,179 +66,228 @@ interface NavItem {
     permission?: string;
 }
 
-const navigation: NavItem[] = [
+interface NavigationGroup {
+    label: string;
+    items: NavItem[];
+}
+
+const navigationGroups: NavigationGroup[] = [
     {
-        label: 'Dashboard',
-        href: '/admin/dashboard',
-        icon: LayoutDashboard,
-    },
-    {
-        label: 'POS & Kasir',
-        href: '/admin/pos',
-        icon: ShoppingCart,
-        permission: 'pos.use',
-    },
-    {
-        label: 'Pesanan Online',
-        href: '/admin/orders',
-        icon: ShoppingBag,
-        permission: 'orders.view',
-    },
-    {
-        label: 'Master Data',
-        icon: Package,
-        permission: 'products.view',
-        children: [
-            { label: 'Produk', href: '/admin/master/products', icon: Box },
+        label: 'UTAMA',
+        items: [
             {
-                label: 'Kategori',
-                href: '/admin/master/categories',
-                icon: LayoutList,
+                label: 'Dashboard',
+                href: '/admin/dashboard',
+                icon: LayoutDashboard,
             },
-            { label: 'Merek', href: '/admin/master/brands', icon: Tags },
-            { label: 'Satuan (UOM)', href: '/admin/master/units', icon: Tag },
-            { label: 'Tag', href: '/admin/master/tags', icon: Tag },
         ],
     },
     {
-        label: 'Inventory',
-        icon: Warehouse,
-        permission: 'inventory.view',
-        children: [
+        label: 'PENJUALAN',
+        items: [
             {
-                label: 'Barang Masuk',
-                href: '/admin/inventory/stock-ins',
-                icon: TrendingUp,
+                label: 'Kasir (POS)',
+                href: '/admin/pos',
+                icon: ShoppingCart,
+                permission: 'pos.use',
             },
             {
-                label: 'Purchase Order',
-                href: '/admin/inventory/operations?section=purchase-orders',
-                icon: ClipboardList,
+                label: 'Pesanan Online',
+                href: '/admin/orders',
+                icon: ShoppingBag,
+                permission: 'orders.view',
             },
             {
-                label: 'Transfer Gudang',
-                href: '/admin/inventory/operations?section=transfers',
+                label: 'Retur Penjualan',
+                href: '/admin/pos/sale-returns',
+                icon: Receipt,
+                permission: 'pos.use',
+            },
+        ],
+    },
+    {
+        label: 'PRODUK & PERSEDIAAN',
+        items: [
+            {
+                label: 'Katalog Produk',
+                icon: Package,
+                permission: 'products.view',
+                children: [
+                    {
+                        label: 'Produk',
+                        href: '/admin/master/products',
+                        icon: Box,
+                    },
+                    {
+                        label: 'Kategori',
+                        href: '/admin/master/categories',
+                        icon: LayoutList,
+                    },
+                    {
+                        label: 'Merek',
+                        href: '/admin/master/brands',
+                        icon: Tags,
+                    },
+                    {
+                        label: 'Satuan Penjualan',
+                        href: '/admin/master/units',
+                        icon: Tag,
+                    },
+                    {
+                        label: 'Tag Produk',
+                        href: '/admin/master/tags',
+                        icon: Tag,
+                    },
+                ],
+            },
+            {
+                label: 'Persediaan',
                 icon: Warehouse,
-            },
-            {
-                label: 'Stock Opname',
-                href: '/admin/inventory/operations?section=opnames',
-                icon: ClipboardList,
-            },
-            {
-                label: 'Penyesuaian Stok',
-                href: '/admin/inventory/operations?section=adjustments',
-                icon: Box,
-            },
-            {
-                label: 'Retur Supplier',
-                href: '/admin/inventory/operations?section=returns',
-                icon: Truck,
-            },
-            {
-                label: 'Supplier',
-                href: '/admin/inventory/suppliers',
-                icon: Truck,
-            },
-            {
-                label: 'Gudang',
-                href: '/admin/inventory/warehouses',
-                icon: Building2,
-            },
-            {
-                label: 'Laporan Stok',
-                href: '/admin/inventory/reports',
-                icon: BarChart3,
+                permission: 'inventory.view',
+                children: [
+                    {
+                        label: 'Penerimaan Barang',
+                        href: '/admin/inventory/stock-ins',
+                        icon: TrendingUp,
+                    },
+                    {
+                        label: 'Purchase Order',
+                        href: '/admin/inventory/operations?section=purchase-orders',
+                        icon: ClipboardList,
+                    },
+                    {
+                        label: 'Transfer Gudang',
+                        href: '/admin/inventory/operations?section=transfers',
+                        icon: Warehouse,
+                    },
+                    {
+                        label: 'Stock Opname',
+                        href: '/admin/inventory/operations?section=opnames',
+                        icon: ClipboardList,
+                    },
+                    {
+                        label: 'Penyesuaian Stok',
+                        href: '/admin/inventory/operations?section=adjustments',
+                        icon: Box,
+                    },
+                    {
+                        label: 'Retur ke Supplier',
+                        href: '/admin/inventory/operations?section=returns',
+                        icon: Truck,
+                    },
+                    {
+                        label: 'Data Supplier',
+                        href: '/admin/inventory/suppliers',
+                        icon: Truck,
+                    },
+                    {
+                        label: 'Lokasi Gudang',
+                        href: '/admin/inventory/warehouses',
+                        icon: Building2,
+                    },
+                    {
+                        label: 'Laporan Persediaan',
+                        href: '/admin/inventory/reports',
+                        icon: BarChart3,
+                    },
+                ],
             },
         ],
     },
     {
-        label: 'Promosi',
-        icon: Megaphone,
-        permission: 'promotions.view',
-        children: [
+        label: 'MANAJEMEN OPERASIONAL',
+        items: [
             {
-                label: 'Data Pegawai',
-                href: '/admin/hr/employees',
-                icon: Users,
-            },
-            {
-                label: 'Daftar Promo',
+                label: 'Promosi & Voucher',
                 href: '/admin/promotions',
                 icon: Megaphone,
+                permission: 'promotions.view',
             },
             {
-                label: 'Buat Promo',
-                href: '/admin/promotions/create',
-                icon: ChevronRight,
+                label: 'Keuangan & Akuntansi',
+                icon: DollarSign,
+                permission: 'finance.view',
+                children: [
+                    {
+                        label: 'Pengeluaran Operasional',
+                        href: '/admin/finance/expenses',
+                        icon: Receipt,
+                    },
+                    {
+                        label: 'Kas, Bank & Hutang Supplier',
+                        href: '/admin/finance/operations',
+                        icon: WalletCards,
+                    },
+                    {
+                        label: 'Piutang Pelanggan',
+                        href: '/admin/finance/receivables',
+                        icon: CreditCard,
+                    },
+                    {
+                        label: 'Laporan Laba Rugi',
+                        href: '/admin/finance/reports/profit-loss',
+                        icon: BarChart3,
+                    },
+                ],
             },
-        ],
-    },
-    {
-        label: 'Keuangan',
-        icon: DollarSign,
-        permission: 'finance.view',
-        children: [
             {
-                label: 'Kas & Pengeluaran',
-                href: '/admin/finance/expenses',
-                icon: Receipt,
-            },
-            {
-                label: 'Kas, Bank & Hutang',
-                href: '/admin/finance/operations',
-                icon: WalletCards,
-            },
-            {
-                label: 'Piutang & Hutang',
-                href: '/admin/finance/receivables',
-                icon: CreditCard,
-            },
-            {
-                label: 'Laporan Laba Rugi',
-                href: '/admin/finance/reports/profit-loss',
-                icon: BarChart3,
-            },
-        ],
-    },
-    {
-        label: 'HR & Absensi',
-        icon: CalendarCheck,
-        permission: 'hr.view',
-        children: [
-            {
-                label: 'Rekap Absensi',
-                href: '/admin/hr/attendances',
+                label: 'SDM & Kehadiran',
                 icon: CalendarCheck,
+                permission: 'hr.view',
+                children: [
+                    {
+                        label: 'Data Pegawai',
+                        href: '/admin/hr/employees',
+                        icon: Users,
+                    },
+                    {
+                        label: 'Kehadiran',
+                        href: '/admin/hr/attendances',
+                        icon: CalendarCheck,
+                    },
+                ],
             },
         ],
     },
     {
-        label: 'CMS & Konten',
-        icon: FileText,
-        permission: 'cms.view',
-        children: [
-            { label: 'Halaman', href: '/admin/cms/pages', icon: FileText },
-            { label: 'Blog', href: '/admin/cms/blogs', icon: BookOpen },
-            { label: 'FAQ', href: '/admin/cms/faqs', icon: HelpCircle },
-        ],
-    },
-    {
-        label: 'Akses & Pengguna',
-        icon: ShieldCheck,
-        permission: 'users.view',
-        children: [
+        label: 'SISTEM',
+        items: [
             {
-                label: 'Pengguna',
-                href: '/admin/access/users',
-                icon: Users,
-                permission: 'users.view',
+                label: 'Konten Website',
+                icon: FileText,
+                permission: 'cms.view',
+                children: [
+                    {
+                        label: 'Halaman Website',
+                        href: '/admin/cms/pages',
+                        icon: FileText,
+                    },
+                    {
+                        label: 'Artikel Blog',
+                        href: '/admin/cms/blogs',
+                        icon: BookOpen,
+                    },
+                    { label: 'FAQ', href: '/admin/cms/faqs', icon: HelpCircle },
+                ],
             },
             {
-                label: 'Role & Permission',
-                href: '/admin/access/roles',
+                label: 'Pengguna & Akses',
                 icon: ShieldCheck,
-                permission: 'roles.manage',
+                permission: 'users.view',
+                children: [
+                    {
+                        label: 'Akun Pengguna',
+                        href: '/admin/access/users',
+                        icon: Users,
+                        permission: 'users.view',
+                    },
+                    {
+                        label: 'Peran & Izin',
+                        href: '/admin/access/roles',
+                        icon: ShieldCheck,
+                        permission: 'roles.manage',
+                    },
+                ],
             },
         ],
     },
@@ -354,18 +403,26 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     const search = window.location.search;
     const auth = (page.props as any).auth;
     const permissions: string[] = auth?.user?.permissions ?? [];
-    const visibleNavigation = navigation
-        .filter(
-            (item) => !item.permission || permissions.includes(item.permission),
-        )
-        .map((item) => ({
-            ...item,
-            children: item.children?.filter(
-                (child) =>
-                    !child.permission || permissions.includes(child.permission),
-            ),
+    const visibleNavigationGroups = navigationGroups
+        .map((group) => ({
+            ...group,
+            items: group.items
+                .filter(
+                    (item) =>
+                        !item.permission ||
+                        permissions.includes(item.permission),
+                )
+                .map((item) => ({
+                    ...item,
+                    children: item.children?.filter(
+                        (child) =>
+                            !child.permission ||
+                            permissions.includes(child.permission),
+                    ),
+                }))
+                .filter((item) => !item.children || item.children.length > 0),
         }))
-        .filter((item) => !item.children || item.children.length > 0);
+        .filter((group) => group.items.length > 0);
 
     return (
         <SidebarProvider
@@ -396,20 +453,25 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                     </SidebarHeader>
 
                     <SidebarContent className="px-2 py-2">
-                        <SidebarGroup>
-                            <SidebarGroupContent>
-                                <SidebarMenu>
-                                    {visibleNavigation.map((item) => (
-                                        <NavMenuItem
-                                            key={item.label}
-                                            item={item}
-                                            pathname={pathname}
-                                            search={search}
-                                        />
-                                    ))}
-                                </SidebarMenu>
-                            </SidebarGroupContent>
-                        </SidebarGroup>
+                        {visibleNavigationGroups.map((group) => (
+                            <SidebarGroup key={group.label} className="py-1">
+                                <SidebarGroupLabel className="h-6 px-2 text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/55">
+                                    {group.label}
+                                </SidebarGroupLabel>
+                                <SidebarGroupContent>
+                                    <SidebarMenu>
+                                        {group.items.map((item) => (
+                                            <NavMenuItem
+                                                key={item.label}
+                                                item={item}
+                                                pathname={pathname}
+                                                search={search}
+                                            />
+                                        ))}
+                                    </SidebarMenu>
+                                </SidebarGroupContent>
+                            </SidebarGroup>
+                        ))}
                     </SidebarContent>
 
                     <SidebarFooter className="space-y-2 border-t border-sidebar-border p-3">
