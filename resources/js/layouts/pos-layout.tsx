@@ -14,7 +14,7 @@ export default function PosLayout({
     headerActions,
 }: PosLayoutProps) {
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-[#f4f6f0]">
+        <div className="flex h-screen flex-col overflow-hidden bg-white">
             {title && <Head title={title} />}
             <header className="flex min-h-16 items-center justify-between gap-3 border-b border-stone-200 bg-white px-3 py-2 sm:px-5">
                 <div className="flex min-w-0 items-center gap-3">

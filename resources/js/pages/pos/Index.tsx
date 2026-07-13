@@ -863,7 +863,7 @@ export default function PosIndex({
     if (!currentShift) {
         return (
             <PosLayout title="POS - Buka Shift">
-                <div className="grid h-full place-items-center bg-stone-50 p-4">
+                <div className="grid h-full place-items-center bg-white p-4">
                     <section className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 sm:p-7">
                         <span className="grid size-11 place-items-center rounded-xl border border-lime-200 bg-lime-50 text-lime-700">
                             <WalletCards className="size-5" />
@@ -1124,7 +1124,7 @@ export default function PosIndex({
                 )}
             </div>
 
-            <div className="space-y-3 border-t border-stone-200 bg-stone-50 p-4">
+            <div className="space-y-3 border-t border-stone-200 bg-white p-4">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                     <Input
                         placeholder="Kode voucher"
@@ -1233,7 +1233,7 @@ export default function PosIndex({
                 </div>
             }
         >
-            <div className="grid h-full min-h-0 bg-stone-50 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid h-full min-h-0 bg-white lg:grid-cols-[minmax(0,1fr)_420px]">
                 <main className="flex min-h-0 flex-col overflow-hidden border-r border-stone-200">
                     <div className="space-y-3 border-b border-stone-200 bg-white p-3 sm:p-4">
                         <div className="flex items-center gap-2">
