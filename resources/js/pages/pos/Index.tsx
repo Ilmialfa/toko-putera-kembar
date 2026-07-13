@@ -698,7 +698,11 @@ export default function PosIndex({
             bills.filter((parkedBill) => parkedBill.id !== bill.id),
         );
         setIsParkedDialogOpen(false);
-        setIsCartSheetOpen(true);
+
+        if (window.matchMedia('(max-width: 1023px)').matches) {
+            setIsCartSheetOpen(true);
+        }
+
         toast.success(`Transaksi ${bill.sale_number} dilanjutkan.`);
     };
 
