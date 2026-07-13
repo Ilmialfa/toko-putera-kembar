@@ -62,7 +62,7 @@
 }
 
 :root {
-    --background: oklch(0.976 0.007 106); /* #F7F8F5 */
+    --background: oklch(1 0 0); /* #FFFFFF */
     --foreground: oklch(0.141 0.005 285); /* #111827 */
     --card: oklch(1 0 0); /* #FFFFFF */
     --card-foreground: oklch(0.141 0.005 285);
@@ -73,20 +73,20 @@
     --primary: oklch(0.85 0.18 135);
     --primary-foreground: oklch(0.15 0 0); /* #1A1A1A */
 
-    --secondary: oklch(0.96 0.01 106);
+    --secondary: oklch(0.985 0.002 106);
     --secondary-foreground: oklch(0.141 0.005 285);
 
-    --muted: oklch(0.96 0.01 106);
+    --muted: oklch(0.985 0.002 106);
     --muted-foreground: oklch(0.55 0.01 285); /* #6B7280 */
 
-    --accent: oklch(0.96 0.01 106);
+    --accent: oklch(0.985 0.002 106);
     --accent-foreground: oklch(0.141 0.005 285);
 
     --destructive: oklch(0.6 0.2 25); /* #EF4444 */
     --destructive-foreground: oklch(1 0 0);
 
-    --border: oklch(0.92 0.01 285); /* #E5E7EB */
-    --input: oklch(0.92 0.01 285);
+    --border: oklch(0.94 0.002 106); /* subtle warm gray */
+    --input: oklch(0.94 0.002 106);
     --ring: oklch(0.85 0.18 135);
 
     --success: oklch(0.7 0.18 140); /* #22C55E */
@@ -102,7 +102,7 @@
     --chart-4: oklch(0.65 0.18 45); /* Orange */
     --chart-5: oklch(0.6 0.15 250); /* Blue */
 
-    --radius: 0.75rem; /* rounded-xl by default for cards/dialogs */
+    --radius: 0.875rem;
 
     --sidebar: oklch(1 0 0); /* White sidebar */
     --sidebar-foreground: oklch(0.141 0.005 285);
@@ -110,7 +110,7 @@
     --sidebar-primary-foreground: oklch(0.15 0 0);
     --sidebar-accent: oklch(0.96 0.03 135); /* Light lime bg for active item */
     --sidebar-accent-foreground: oklch(0.15 0 0);
-    --sidebar-border: oklch(0.92 0.01 285);
+    --sidebar-border: oklch(0.94 0.002 106);
     --sidebar-ring: oklch(0.85 0.18 135);
 }
 
@@ -173,6 +173,22 @@
     body {
         @apply bg-background text-foreground antialiased;
         font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    }
+
+    #app {
+        @apply min-h-svh bg-white;
+    }
+
+    .admin-workspace .border-stone-200,
+    .admin-workspace .border-gray-200,
+    .admin-workspace .border-gray-300 {
+        border-color: oklch(0.94 0.002 106);
+    }
+
+    .admin-workspace .bg-stone-50,
+    .admin-workspace .bg-gray-50,
+    .admin-workspace .bg-\[\#f8faf5\] {
+        background-color: oklch(0.985 0.002 106);
     }
 
     button,

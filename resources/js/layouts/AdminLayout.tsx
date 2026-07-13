@@ -41,7 +41,6 @@ import {
     SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
-    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -429,7 +428,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             style={{ '--sidebar-width': '18rem' } as React.CSSProperties}
         >
             {title && <Head title={title} />}
-            <div className="flex h-screen w-full overflow-hidden bg-background">
+            <div className="admin-workspace flex h-screen w-full overflow-hidden bg-background">
                 {/* Admin Sidebar */}
                 <Sidebar>
                     <SidebarHeader className="border-b border-sidebar-border p-4">
@@ -452,12 +451,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                         </div>
                     </SidebarHeader>
 
-                    <SidebarContent className="px-2 py-2">
-                        {visibleNavigationGroups.map((group) => (
-                            <SidebarGroup key={group.label} className="py-1">
-                                <SidebarGroupLabel className="h-6 px-2 text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/55">
-                                    {group.label}
-                                </SidebarGroupLabel>
+                    <SidebarContent className="px-3 py-3">
+                        {visibleNavigationGroups.map((group, index) => (
+                            <SidebarGroup
+                                key={group.label}
+                                className={`p-0 ${index === 0 ? '' : 'mt-3'}`}
+                            >
                                 <SidebarGroupContent>
                                     <SidebarMenu>
                                         {group.items.map((item) => (
