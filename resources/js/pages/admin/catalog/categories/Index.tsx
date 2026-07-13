@@ -1,13 +1,15 @@
-import { useForm, router } from '@inertiajs/react';
-import React, { useState } from 'react';
+import { router, useForm } from '@inertiajs/react';
+import { LayoutList, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,14 +31,24 @@ interface Category {
     is_active: boolean;
 }
 
-export default function CategoryIndex({ categories, filters }: any) {
-    const [search, setSearch] = useState(filters.search || '');
+interface CategoryIndexProps {
+    categories: { data: Category[]; total?: number };
+    filters: { search?: string };
+}
+
+const statusClass =
+    'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold';
+
+export default function CategoryIndex({
+    categories,
+    filters,
+}: CategoryIndexProps) {
+    const [search, setSearch] = useState(filters.search ?? '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(
         null,
     );
-
     const {
         data,
         setData,
@@ -53,8 +65,8 @@ export default function CategoryIndex({ categories, filters }: any) {
         parent_id: '',
     });
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         router.get(
             '/admin/master/categories',
             { search },
@@ -62,12 +74,17 @@ export default function CategoryIndex({ categories, filters }: any) {
         );
     };
 
-    const handleCreateSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const resetDialog = () => {
+        reset();
+        setEditingCategory(null);
+    };
+
+    const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         post('/admin/master/categories', {
             onSuccess: () => {
                 setIsCreateOpen(false);
-                reset();
+                resetDialog();
             },
         });
     };
@@ -78,13 +95,13 @@ export default function CategoryIndex({ categories, filters }: any) {
             name: category.name,
             display_order: category.display_order,
             is_active: category.is_active,
-            parent_id: '', // Omit parent implementation for brevity
+            parent_id: '',
         });
         setIsEditOpen(true);
     };
 
-    const handleEditSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
         if (!editingCategory) {
             return;
@@ -93,210 +110,304 @@ export default function CategoryIndex({ categories, filters }: any) {
         put(`/admin/master/categories/${editingCategory.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
-                reset();
+                resetDialog();
             },
         });
     };
 
     const handleDelete = (category: Category) => {
-        if (confirm(`Are you sure you want to delete ${category.name}?`)) {
+        if (confirm(`Hapus kategori "${category.name}"?`)) {
             destroy(`/admin/master/categories/${category.id}`);
         }
     };
 
     return (
-        <AdminLayout title="Categories">
-            <div className="mb-6 flex items-center justify-between">
-                <form onSubmit={handleSearch} className="flex gap-2">
-                    <Input
-                        placeholder="Search categories..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-64"
-                    />
-                    <Button type="submit" variant="secondary">
-                        Search
-                    </Button>
-                </form>
+        <AdminLayout title="Kategori">
+            <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+                <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
+                            Master data
+                        </p>
+                        <h2 className="mt-1 text-2xl font-bold tracking-tight text-stone-900">
+                            Kategori produk
+                        </h2>
+                        <p className="mt-1 text-sm text-stone-500">
+                            Kelompokkan produk agar katalog dan kasir lebih
+                            mudah digunakan.
+                        </p>
+                    </div>
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="h-11 px-4">
+                                <Plus className="size-4" /> Tambah kategori
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <form
+                                onSubmit={handleCreateSubmit}
+                                className="space-y-5"
+                            >
+                                <DialogHeader>
+                                    <DialogTitle>Tambah kategori</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="category-name">
+                                            Nama kategori
+                                        </Label>
+                                        <Input
+                                            id="category-name"
+                                            value={data.name}
+                                            onChange={(event) =>
+                                                setData(
+                                                    'name',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoFocus
+                                        />
+                                        {errors.name && (
+                                            <p className="text-sm text-red-600">
+                                                {errors.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="category-order">
+                                            Urutan tampil
+                                        </Label>
+                                        <Input
+                                            id="category-order"
+                                            type="number"
+                                            min="0"
+                                            value={data.display_order}
+                                            onChange={(event) =>
+                                                setData(
+                                                    'display_order',
+                                                    Number(
+                                                        event.target.value,
+                                                    ) || 0,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <label className="flex min-h-11 items-center gap-3 rounded-xl border border-stone-200 px-3 text-sm font-medium text-stone-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.is_active}
+                                            onChange={(event) =>
+                                                setData(
+                                                    'is_active',
+                                                    event.target.checked,
+                                                )
+                                            }
+                                        />
+                                        Kategori aktif
+                                    </label>
+                                </div>
+                                <DialogFooter>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setIsCreateOpen(false)}
+                                    >
+                                        Batal
+                                    </Button>
+                                    <Button type="submit" disabled={processing}>
+                                        {processing
+                                            ? 'Menyimpan...'
+                                            : 'Simpan kategori'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </header>
 
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>Add Category</Button>
-                    </DialogTrigger>
+                <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                    <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <form
+                            onSubmit={handleSearch}
+                            className="flex w-full max-w-md gap-2"
+                        >
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    placeholder="Cari kategori"
+                                    value={search}
+                                    onChange={(event) =>
+                                        setSearch(event.target.value)
+                                    }
+                                    className="h-10 w-full pl-9"
+                                />
+                            </div>
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                className="h-10"
+                            >
+                                Cari
+                            </Button>
+                        </form>
+                        <span className="inline-flex items-center gap-2 text-sm text-stone-500">
+                            <LayoutList className="size-4 text-lime-700" />
+                            {categories.total ?? categories.data.length}{' '}
+                            kategori
+                        </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nama</TableHead>
+                                    <TableHead>Slug</TableHead>
+                                    <TableHead>Urutan</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">
+                                        Tindakan
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {categories.data.length > 0 ? (
+                                    categories.data.map((category) => (
+                                        <TableRow key={category.id}>
+                                            <TableCell className="font-semibold text-stone-800">
+                                                {category.name}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs text-stone-500">
+                                                {category.slug}
+                                            </TableCell>
+                                            <TableCell>
+                                                {category.display_order}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span
+                                                    className={`${statusClass} ${category.is_active ? 'border-lime-200 bg-lime-50 text-lime-800' : 'border-stone-200 bg-stone-50 text-stone-600'}`}
+                                                >
+                                                    {category.is_active
+                                                        ? 'Aktif'
+                                                        : 'Nonaktif'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            openEdit(category)
+                                                        }
+                                                    >
+                                                        <Pencil className="size-3.5" />{' '}
+                                                        Ubah
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                        onClick={() =>
+                                                            handleDelete(
+                                                                category,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="size-3.5" />{' '}
+                                                        Hapus
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={5}
+                                            className="h-48 text-center text-sm text-stone-500"
+                                        >
+                                            Kategori belum ditemukan.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </section>
+
+                <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                     <DialogContent>
-                        <form onSubmit={handleCreateSubmit}>
+                        <form onSubmit={handleEditSubmit} className="space-y-5">
                             <DialogHeader>
-                                <DialogTitle>Add New Category</DialogTitle>
+                                <DialogTitle>Ubah kategori</DialogTitle>
                             </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div>
-                                    <Label>Name</Label>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="edit-category-name">
+                                        Nama kategori
+                                    </Label>
                                     <Input
+                                        id="edit-category-name"
                                         value={data.name}
-                                        onChange={(e) =>
-                                            setData('name', e.target.value)
+                                        onChange={(event) =>
+                                            setData('name', event.target.value)
                                         }
                                     />
                                     {errors.name && (
-                                        <div className="text-sm text-red-500">
+                                        <p className="text-sm text-red-600">
                                             {errors.name}
-                                        </div>
+                                        </p>
                                     )}
                                 </div>
-                                <div>
-                                    <Label>Display Order</Label>
+                                <div className="space-y-2">
+                                    <Label htmlFor="edit-category-order">
+                                        Urutan tampil
+                                    </Label>
                                     <Input
+                                        id="edit-category-order"
                                         type="number"
+                                        min="0"
                                         value={data.display_order}
-                                        onChange={(e) =>
+                                        onChange={(event) =>
                                             setData(
                                                 'display_order',
-                                                parseInt(e.target.value) || 0,
+                                                Number(event.target.value) || 0,
                                             )
                                         }
                                     />
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <label className="flex min-h-11 items-center gap-3 rounded-xl border border-stone-200 px-3 text-sm font-medium text-stone-700">
                                     <input
                                         type="checkbox"
-                                        id="is_active"
                                         checked={data.is_active}
-                                        onChange={(e) =>
+                                        onChange={(event) =>
                                             setData(
                                                 'is_active',
-                                                e.target.checked,
+                                                event.target.checked,
                                             )
                                         }
                                     />
-                                    <Label htmlFor="is_active">Active</Label>
-                                </div>
+                                    Kategori aktif
+                                </label>
                             </div>
                             <DialogFooter>
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setIsCreateOpen(false)}
+                                    onClick={() => setIsEditOpen(false)}
                                 >
-                                    Cancel
+                                    Batal
                                 </Button>
                                 <Button type="submit" disabled={processing}>
-                                    Save
+                                    {processing
+                                        ? 'Menyimpan...'
+                                        : 'Simpan perubahan'}
                                 </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
-
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Slug</TableHead>
-                            <TableHead>Order</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {categories.data.map((category: Category) => (
-                            <TableRow key={category.id}>
-                                <TableCell className="font-medium">
-                                    {category.name}
-                                </TableCell>
-                                <TableCell>{category.slug}</TableCell>
-                                <TableCell>{category.display_order}</TableCell>
-                                <TableCell>
-                                    {category.is_active ? 'Active' : 'Inactive'}
-                                </TableCell>
-                                <TableCell className="gap-2 text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEdit(category)}
-                                    >
-                                        Edit
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-500"
-                                        onClick={() => handleDelete(category)}
-                                    >
-                                        Delete
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-
-            {/* Edit Dialog */}
-            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogContent>
-                    <form onSubmit={handleEditSubmit}>
-                        <DialogHeader>
-                            <DialogTitle>Edit Category</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div>
-                                <Label>Name</Label>
-                                <Input
-                                    value={data.name}
-                                    onChange={(e) =>
-                                        setData('name', e.target.value)
-                                    }
-                                />
-                                {errors.name && (
-                                    <div className="text-sm text-red-500">
-                                        {errors.name}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <Label>Display Order</Label>
-                                <Input
-                                    type="number"
-                                    value={data.display_order}
-                                    onChange={(e) =>
-                                        setData(
-                                            'display_order',
-                                            parseInt(e.target.value) || 0,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="edit_is_active"
-                                    checked={data.is_active}
-                                    onChange={(e) =>
-                                        setData('is_active', e.target.checked)
-                                    }
-                                />
-                                <Label htmlFor="edit_is_active">Active</Label>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsEditOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={processing}>
-                                Update
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
         </AdminLayout>
     );
 }

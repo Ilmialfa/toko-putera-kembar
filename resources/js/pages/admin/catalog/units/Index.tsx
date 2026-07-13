@@ -1,13 +1,15 @@
-import { useForm, router } from '@inertiajs/react';
-import React, { useState } from 'react';
+import { router, useForm } from '@inertiajs/react';
+import { Pencil, Plus, Ruler, Search, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,13 +29,16 @@ interface Unit {
     symbol: string;
     is_active: boolean;
 }
+interface UnitIndexProps {
+    units: { data: Unit[]; total?: number };
+    filters: { search?: string };
+}
 
-export default function UnitIndex({ units, filters }: any) {
-    const [search, setSearch] = useState(filters.search || '');
+export default function UnitIndex({ units, filters }: UnitIndexProps) {
+    const [search, setSearch] = useState(filters.search ?? '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
-
     const {
         data,
         setData,
@@ -43,39 +48,36 @@ export default function UnitIndex({ units, filters }: any) {
         processing,
         errors,
         reset,
-    } = useForm({
-        name: '',
-        symbol: '',
-        is_active: true,
-    });
+    } = useForm({ name: '', symbol: '', is_active: true });
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         router.get('/admin/master/units', { search }, { preserveState: true });
     };
-
-    const handleCreateSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const closeDialog = () => {
+        reset();
+        setEditingUnit(null);
+    };
+    const saveNewUnit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         post('/admin/master/units', {
             onSuccess: () => {
                 setIsCreateOpen(false);
-                reset();
+                closeDialog();
             },
         });
     };
-
     const openEdit = (unit: Unit) => {
         setEditingUnit(unit);
         setData({
             name: unit.name,
-            symbol: unit.symbol || '',
+            symbol: unit.symbol ?? '',
             is_active: unit.is_active,
         });
         setIsEditOpen(true);
     };
-
-    const handleEditSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const saveUnit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
         if (!editingUnit) {
             return;
@@ -84,200 +86,220 @@ export default function UnitIndex({ units, filters }: any) {
         put(`/admin/master/units/${editingUnit.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
-                reset();
+                closeDialog();
             },
         });
     };
-
-    const handleDelete = (unit: Unit) => {
-        if (confirm(`Are you sure you want to delete ${unit.name}?`)) {
+    const removeUnit = (unit: Unit) => {
+        if (confirm(`Hapus satuan "${unit.name}"?`)) {
             destroy(`/admin/master/units/${unit.id}`);
         }
     };
 
-    return (
-        <AdminLayout title="Units">
-            <div className="mb-6 flex items-center justify-between">
-                <form onSubmit={handleSearch} className="flex gap-2">
+    const unitForm = (
+        formId: string,
+        submit: (event: FormEvent<HTMLFormElement>) => void,
+        title: string,
+    ) => (
+        <form onSubmit={submit} className="space-y-5">
+            <DialogHeader>
+                <DialogTitle>{title}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor={`${formId}-name`}>Nama satuan</Label>
                     <Input
-                        placeholder="Search units..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-64"
+                        id={`${formId}-name`}
+                        value={data.name}
+                        onChange={(event) =>
+                            setData('name', event.target.value)
+                        }
+                        autoFocus
                     />
-                    <Button type="submit" variant="secondary">
-                        Search
-                    </Button>
-                </form>
+                    {errors.name && (
+                        <p className="text-sm text-red-600">{errors.name}</p>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor={`${formId}-symbol`}>Simbol</Label>
+                    <Input
+                        id={`${formId}-symbol`}
+                        value={data.symbol}
+                        onChange={(event) =>
+                            setData('symbol', event.target.value)
+                        }
+                        placeholder="Contoh: pcs, kg, dus"
+                    />
+                    {errors.symbol && (
+                        <p className="text-sm text-red-600">{errors.symbol}</p>
+                    )}
+                </div>
+                <label className="flex min-h-11 items-center gap-3 rounded-xl border border-stone-200 px-3 text-sm font-medium text-stone-700">
+                    <input
+                        type="checkbox"
+                        checked={data.is_active}
+                        onChange={(event) =>
+                            setData('is_active', event.target.checked)
+                        }
+                    />
+                    Satuan aktif
+                </label>
+            </div>
+            <DialogFooter>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                        setIsCreateOpen(false);
+                        setIsEditOpen(false);
+                    }}
+                >
+                    Batal
+                </Button>
+                <Button type="submit" disabled={processing}>
+                    {processing ? 'Menyimpan...' : 'Simpan satuan'}
+                </Button>
+            </DialogFooter>
+        </form>
+    );
 
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>Add Unit</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <form onSubmit={handleCreateSubmit}>
-                            <DialogHeader>
-                                <DialogTitle>Add New Unit</DialogTitle>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div>
-                                    <Label>Name</Label>
-                                    <Input
-                                        value={data.name}
-                                        onChange={(e) =>
-                                            setData('name', e.target.value)
-                                        }
-                                    />
-                                    {errors.name && (
-                                        <div className="text-sm text-red-500">
-                                            {errors.name}
-                                        </div>
-                                    )}
-                                </div>
-                                <div>
-                                    <Label>Symbol</Label>
-                                    <Input
-                                        value={data.symbol}
-                                        onChange={(e) =>
-                                            setData('symbol', e.target.value)
-                                        }
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        id="is_active"
-                                        checked={data.is_active}
-                                        onChange={(e) =>
-                                            setData(
-                                                'is_active',
-                                                e.target.checked,
-                                            )
-                                        }
-                                    />
-                                    <Label htmlFor="is_active">Active</Label>
-                                </div>
+    return (
+        <AdminLayout title="Satuan">
+            <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+                <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
+                            Master data
+                        </p>
+                        <h2 className="mt-1 text-2xl font-bold tracking-tight text-stone-900">
+                            Satuan penjualan
+                        </h2>
+                        <p className="mt-1 text-sm text-stone-500">
+                            Tetapkan satuan dasar dan simbol yang dipakai pada
+                            produk serta transaksi.
+                        </p>
+                    </div>
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="h-11 px-4">
+                                <Plus className="size-4" /> Tambah satuan
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            {unitForm('new-unit', saveNewUnit, 'Tambah satuan')}
+                        </DialogContent>
+                    </Dialog>
+                </header>
+                <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                    <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <form
+                            onSubmit={handleSearch}
+                            className="flex w-full max-w-md gap-2"
+                        >
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-stone-400" />
+                                <Input
+                                    placeholder="Cari satuan"
+                                    value={search}
+                                    onChange={(event) =>
+                                        setSearch(event.target.value)
+                                    }
+                                    className="h-10 w-full pl-9"
+                                />
                             </div>
-                            <DialogFooter>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setIsCreateOpen(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button type="submit" disabled={processing}>
-                                    Save
-                                </Button>
-                            </DialogFooter>
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                className="h-10"
+                            >
+                                Cari
+                            </Button>
                         </form>
+                        <span className="inline-flex items-center gap-2 text-sm text-stone-500">
+                            <Ruler className="size-4 text-lime-700" />
+                            {units.total ?? units.data.length} satuan
+                        </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nama</TableHead>
+                                    <TableHead>Simbol</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">
+                                        Tindakan
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {units.data.length > 0 ? (
+                                    units.data.map((unit) => (
+                                        <TableRow key={unit.id}>
+                                            <TableCell className="font-semibold text-stone-800">
+                                                {unit.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 font-mono text-xs text-stone-700">
+                                                    {unit.symbol}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span
+                                                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${unit.is_active ? 'border-lime-200 bg-lime-50 text-lime-800' : 'border-stone-200 bg-stone-50 text-stone-600'}`}
+                                                >
+                                                    {unit.is_active
+                                                        ? 'Aktif'
+                                                        : 'Nonaktif'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            openEdit(unit)
+                                                        }
+                                                    >
+                                                        <Pencil className="size-3.5" />{' '}
+                                                        Ubah
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                        onClick={() =>
+                                                            removeUnit(unit)
+                                                        }
+                                                    >
+                                                        <Trash2 className="size-3.5" />{' '}
+                                                        Hapus
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={4}
+                                            className="h-48 text-center text-sm text-stone-500"
+                                        >
+                                            Satuan belum ditemukan.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </section>
+                <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                    <DialogContent>
+                        {unitForm('edit-unit', saveUnit, 'Ubah satuan')}
                     </DialogContent>
                 </Dialog>
             </div>
-
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Symbol</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {units.data.map((unit: Unit) => (
-                            <TableRow key={unit.id}>
-                                <TableCell className="font-medium">
-                                    {unit.name}
-                                </TableCell>
-                                <TableCell>{unit.symbol}</TableCell>
-                                <TableCell>
-                                    {unit.is_active ? 'Active' : 'Inactive'}
-                                </TableCell>
-                                <TableCell className="gap-2 text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEdit(unit)}
-                                    >
-                                        Edit
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-500"
-                                        onClick={() => handleDelete(unit)}
-                                    >
-                                        Delete
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-
-            {/* Edit Dialog */}
-            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogContent>
-                    <form onSubmit={handleEditSubmit}>
-                        <DialogHeader>
-                            <DialogTitle>Edit Unit</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div>
-                                <Label>Name</Label>
-                                <Input
-                                    value={data.name}
-                                    onChange={(e) =>
-                                        setData('name', e.target.value)
-                                    }
-                                />
-                                {errors.name && (
-                                    <div className="text-sm text-red-500">
-                                        {errors.name}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <Label>Symbol</Label>
-                                <Input
-                                    value={data.symbol}
-                                    onChange={(e) =>
-                                        setData('symbol', e.target.value)
-                                    }
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="edit_is_active"
-                                    checked={data.is_active}
-                                    onChange={(e) =>
-                                        setData('is_active', e.target.checked)
-                                    }
-                                />
-                                <Label htmlFor="edit_is_active">Active</Label>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsEditOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={processing}>
-                                Update
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
         </AdminLayout>
     );
 }

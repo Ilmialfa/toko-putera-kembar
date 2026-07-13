@@ -152,7 +152,7 @@ export default function ProductForm({
         ) : null;
 
     return (
-        <AdminLayout title={isEditing ? 'Edit Produk' : 'Produk Baru'}>
+        <AdminLayout title={isEditing ? 'Ubah Produk' : 'Produk Baru'}>
             <form
                 onSubmit={submit}
                 className="mx-auto max-w-7xl space-y-6 p-4 pb-24 md:p-8"
@@ -164,7 +164,7 @@ export default function ProductForm({
                         </p>
                         <h2 className="mt-1 text-2xl font-bold text-stone-950">
                             {isEditing
-                                ? `Edit ${product?.name}`
+                                ? `Ubah ${product?.name}`
                                 : 'Tambahkan produk lengkap'}
                         </h2>
                         <p className="mt-1 text-sm text-stone-500">

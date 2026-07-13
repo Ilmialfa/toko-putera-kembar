@@ -95,7 +95,7 @@ const navigation: NavItem[] = [
                 href: '/admin/master/categories',
                 icon: LayoutList,
             },
-            { label: 'Brand', href: '/admin/master/brands', icon: Tags },
+            { label: 'Merek', href: '/admin/master/brands', icon: Tags },
             { label: 'Satuan (UOM)', href: '/admin/master/units', icon: Tag },
             { label: 'Tag', href: '/admin/master/tags', icon: Tag },
         ],
