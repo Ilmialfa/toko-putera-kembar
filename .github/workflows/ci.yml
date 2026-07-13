@@ -1,0 +1,55 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main, staging ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+          
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Composer Dependencies
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+        
+      - name: Install NPM Dependencies
+        run: npm ci
+        
+      - name: Copy .env
+        run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+        
+      - name: Generate key
+        run: php artisan key:generate
+        
+      - name: Create Database
+        run: touch database/database.sqlite
+        
+      - name: Build frontend
+        run: npm run build
+        
+      - name: PHPStan Analysis
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G
+        
+      - name: ESLint Check
+        run: npm run lint:check
+        
+      - name: Prettier Check
+        run: npm run format:check
+        
+      - name: Run Tests (Pest)
+        run: php artisan test --compact
