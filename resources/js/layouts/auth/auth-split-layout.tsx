@@ -11,7 +11,7 @@ export default function AuthSplitLayout({
 
     return (
         <div className="relative grid h-dvh flex-col items-center justify-center px-8 sm:px-0 lg:max-w-none lg:grid-cols-2 lg:px-0">
-            <div className="relative hidden h-full flex-col overflow-hidden bg-[#171a15] p-10 text-white lg:flex dark:border-r">
+            <div className="relative hidden h-full flex-col overflow-hidden border-r border-stone-200 bg-lime-50 p-10 text-stone-800 lg:flex">
                 <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
                 <div className="absolute right-[-10rem] bottom-[-9rem] h-[34rem] w-[34rem] rounded-full border-[5rem] border-primary/10" />
                 <Link
@@ -30,7 +30,7 @@ export default function AuthSplitLayout({
                     <h2 className="text-5xl leading-[1.05] font-bold tracking-tight">
                         Kelola toko lebih cepat, rapi, dan terukur.
                     </h2>
-                    <p className="mt-6 max-w-lg text-base leading-7 text-white/60">
+                    <p className="mt-6 max-w-lg text-base leading-7 text-stone-600">
                         Pantau penjualan, stok, harga grosir, keuangan, dan tim
                         Putera Kembar dari satu backoffice modern.
                     </p>

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Sales;
 
 use App\Models\CashierShift;
+use App\Models\Warehouse;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,7 @@ class CheckoutPosRequest extends FormRequest
             'payments.*.amount' => ['required', 'numeric', 'gt:0'],
             'payments.*.reference_number' => ['nullable', 'string', 'max:100'],
             'parked_sale_id' => ['nullable', 'integer', 'exists:sales,id'],
+            'receivable_due_date' => ['nullable', 'date', 'after_or_equal:today'],
         ];
     }
 
@@ -55,6 +57,27 @@ class CheckoutPosRequest extends FormRequest
 
                 if ($shift === null || $shift->status !== 'open' || $shift->user_id !== $this->user()?->id) {
                     $validator->errors()->add('cashier_shift_id', 'Shift kasir tidak aktif atau bukan milik Anda.');
+                }
+
+                $warehouseIsInStore = Warehouse::query()
+                    ->whereKey($this->integer('warehouse_id'))
+                    ->where('store_location_id', $this->user()?->store_id)
+                    ->exists();
+
+                if (! $warehouseIsInStore) {
+                    $validator->errors()->add('warehouse_id', 'Gudang harus berada di toko yang sama.');
+                }
+
+                $customerRequiredMethods = collect($this->input('payments', []))
+                    ->pluck('method')
+                    ->intersect(['piutang', 'points']);
+
+                if ($customerRequiredMethods->isNotEmpty() && ! $this->filled('customer_id')) {
+                    $validator->errors()->add('customer_id', 'Pelanggan wajib dipilih untuk pembayaran piutang atau poin.');
+                }
+
+                if ($customerRequiredMethods->contains('piutang') && ! $this->filled('receivable_due_date')) {
+                    $validator->errors()->add('receivable_due_date', 'Tanggal jatuh tempo piutang wajib diisi.');
                 }
             },
         ];

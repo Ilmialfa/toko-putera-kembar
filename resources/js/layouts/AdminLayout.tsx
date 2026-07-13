@@ -106,19 +106,34 @@ const navigation: NavItem[] = [
         permission: 'inventory.view',
         children: [
             {
-                label: 'Data Pegawai',
-                href: '/admin/hr/employees',
-                icon: Users,
-            },
-            {
                 label: 'Barang Masuk',
                 href: '/admin/inventory/stock-ins',
                 icon: TrendingUp,
             },
             {
-                label: 'PO & Operasional Stok',
-                href: '/admin/inventory/operations',
+                label: 'Purchase Order',
+                href: '/admin/inventory/operations?section=purchase-orders',
                 icon: ClipboardList,
+            },
+            {
+                label: 'Transfer Gudang',
+                href: '/admin/inventory/operations?section=transfers',
+                icon: Warehouse,
+            },
+            {
+                label: 'Stock Opname',
+                href: '/admin/inventory/operations?section=opnames',
+                icon: ClipboardList,
+            },
+            {
+                label: 'Penyesuaian Stok',
+                href: '/admin/inventory/operations?section=adjustments',
+                icon: Box,
+            },
+            {
+                label: 'Retur Supplier',
+                href: '/admin/inventory/operations?section=returns',
+                icon: Truck,
             },
             {
                 label: 'Supplier',
@@ -142,6 +157,11 @@ const navigation: NavItem[] = [
         icon: Megaphone,
         permission: 'promotions.view',
         children: [
+            {
+                label: 'Data Pegawai',
+                href: '/admin/hr/employees',
+                icon: Users,
+            },
             {
                 label: 'Daftar Promo',
                 href: '/admin/promotions',
@@ -224,14 +244,41 @@ const navigation: NavItem[] = [
     },
 ];
 
-function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
+function isNavigationActive(
+    href: string,
+    pathname: string,
+    search: string,
+): boolean {
+    const [targetPath, targetQuery = ''] = href.split('?');
+    const pathMatches =
+        pathname === targetPath || pathname.startsWith(`${targetPath}/`);
+
+    if (!pathMatches) {
+        return false;
+    }
+
+    const targetSection = new URLSearchParams(targetQuery).get('section');
+
+    return targetSection
+        ? new URLSearchParams(search).get('section') === targetSection
+        : true;
+}
+
+function NavMenuItem({
+    item,
+    pathname,
+    search,
+}: {
+    item: NavItem;
+    pathname: string;
+    search: string;
+}) {
     const isActive = item.href
-        ? pathname === item.href || pathname.startsWith(item.href + '/')
+        ? isNavigationActive(item.href, pathname, search)
         : false;
     const isParentActive = item.children?.some(
         (child) =>
-            child.href &&
-            (pathname === child.href || pathname.startsWith(child.href + '/')),
+            child.href && isNavigationActive(child.href, pathname, search),
     );
     const [open, setOpen] = useState(isParentActive || false);
 
@@ -262,9 +309,10 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
                                         asChild
                                         isActive={
                                             child.href
-                                                ? pathname === child.href ||
-                                                  pathname.startsWith(
-                                                      child.href + '/',
+                                                ? isNavigationActive(
+                                                      child.href,
+                                                      pathname,
+                                                      search,
                                                   )
                                                 : false
                                         }
@@ -300,6 +348,7 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }) {
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
     const page = usePage();
     const pathname = window.location.pathname;
+    const search = window.location.search;
     const auth = (page.props as any).auth;
     const permissions: string[] = auth?.user?.permissions ?? [];
     const visibleNavigation = navigation
@@ -344,6 +393,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                                             key={item.label}
                                             item={item}
                                             pathname={pathname}
+                                            search={search}
                                         />
                                     ))}
                                 </SidebarMenu>

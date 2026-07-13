@@ -134,7 +134,7 @@ export default function PromotionForm({
                 onSubmit={submit}
                 className="mx-auto max-w-7xl space-y-6 p-4 pb-24 md:p-8"
             >
-                <header className="flex flex-col justify-between gap-4 rounded-2xl bg-stone-950 p-6 text-white md:flex-row md:items-center">
+                <header className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 md:flex-row md:items-center">
                     <div>
                         <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
                             Campaign builder

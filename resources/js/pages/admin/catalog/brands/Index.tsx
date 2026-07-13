@@ -50,16 +50,12 @@ export default function BrandIndex({ brands, filters }: any) {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get(
-            '/admin/catalog/brands',
-            { search },
-            { preserveState: true },
-        );
+        router.get('/admin/master/brands', { search }, { preserveState: true });
     };
 
     const handleCreateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/admin/catalog/brands', {
+        post('/admin/master/brands', {
             onSuccess: () => {
                 setIsCreateOpen(false);
                 reset();
@@ -83,7 +79,7 @@ export default function BrandIndex({ brands, filters }: any) {
             return;
         }
 
-        put(`/admin/catalog/brands/${editingBrand.id}`, {
+        put(`/admin/master/brands/${editingBrand.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
                 reset();
@@ -93,7 +89,7 @@ export default function BrandIndex({ brands, filters }: any) {
 
     const handleDelete = (brand: Brand) => {
         if (confirm(`Are you sure you want to delete ${brand.name}?`)) {
-            destroy(`/admin/catalog/brands/${brand.id}`);
+            destroy(`/admin/master/brands/${brand.id}`);
         }
     };
 

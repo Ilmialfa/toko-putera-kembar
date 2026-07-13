@@ -51,12 +51,12 @@ export default function UnitIndex({ units, filters }: any) {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get('/admin/catalog/units', { search }, { preserveState: true });
+        router.get('/admin/master/units', { search }, { preserveState: true });
     };
 
     const handleCreateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/admin/catalog/units', {
+        post('/admin/master/units', {
             onSuccess: () => {
                 setIsCreateOpen(false);
                 reset();
@@ -81,7 +81,7 @@ export default function UnitIndex({ units, filters }: any) {
             return;
         }
 
-        put(`/admin/catalog/units/${editingUnit.id}`, {
+        put(`/admin/master/units/${editingUnit.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
                 reset();
@@ -91,7 +91,7 @@ export default function UnitIndex({ units, filters }: any) {
 
     const handleDelete = (unit: Unit) => {
         if (confirm(`Are you sure you want to delete ${unit.name}?`)) {
-            destroy(`/admin/catalog/units/${unit.id}`);
+            destroy(`/admin/master/units/${unit.id}`);
         }
     };
 

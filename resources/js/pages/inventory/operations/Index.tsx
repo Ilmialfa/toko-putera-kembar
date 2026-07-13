@@ -74,6 +74,45 @@ export default function InventoryOperations(props: any) {
     const permissions: string[] =
         (usePage().props as any).auth.user.permissions ?? [];
     const [dialog, setDialog] = useState<string | null>(null);
+    const requestedSection =
+        new URLSearchParams(window.location.search).get('section') ??
+        'purchase-orders';
+    const sections = [
+        {
+            id: 'purchase-orders',
+            label: 'Purchase Order',
+            icon: ShoppingCart,
+            dialog: 'po',
+        },
+        {
+            id: 'transfers',
+            label: 'Transfer Gudang',
+            icon: ArrowRightLeft,
+            dialog: 'transfer',
+        },
+        {
+            id: 'opnames',
+            label: 'Stock Opname',
+            icon: ClipboardCheck,
+            dialog: 'opname',
+        },
+        {
+            id: 'adjustments',
+            label: 'Penyesuaian Stok',
+            icon: PackageMinus,
+            dialog: 'adjustment',
+        },
+        {
+            id: 'returns',
+            label: 'Retur Supplier',
+            icon: RotateCcw,
+            dialog: 'return',
+        },
+    ];
+    const selectedSection =
+        sections.find((section) => section.id === requestedSection) ??
+        sections[0];
+    const activeSection = selectedSection.id;
     const po = useForm({
         supplier_id: suppliers[0]?.id ?? '',
         warehouse_id: warehouses[0]?.id ?? '',
@@ -140,182 +179,188 @@ export default function InventoryOperations(props: any) {
     return (
         <AdminLayout title="Operasional Stok">
             <div className="space-y-6 p-4 md:p-8">
-                <header className="rounded-2xl bg-stone-950 p-6 text-white">
-                    <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
-                        Inventory control tower
-                    </p>
-                    <h2 className="mt-1 text-2xl font-bold">
-                        PO, transfer, opname, adjustment & retur
-                    </h2>
-                    <p className="mt-1 max-w-3xl text-sm text-stone-400">
-                        Setiap penyelesaian operasi menulis stock ledger
-                        immutable dan menjalankan approval sesuai permission.
-                    </p>
+                <header className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:flex-row md:items-center">
+                    <div>
+                        <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
+                            Operasional persediaan
+                        </p>
+                        <h2 className="mt-1 text-2xl font-bold text-stone-800">
+                            {selectedSection.label}
+                        </h2>
+                        <p className="mt-1 max-w-3xl text-sm text-stone-500">
+                            Setiap perubahan stok memiliki jejak ledger dan alur
+                            persetujuan yang dapat diaudit.
+                        </p>
+                    </div>
+                    <Button onClick={() => setDialog(selectedSection.dialog)}>
+                        <Plus className="size-4" />
+                        Buat {selectedSection.label}
+                    </Button>
                 </header>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                    <Action
-                        icon={ShoppingCart}
-                        label="Purchase order"
-                        onClick={() => setDialog('po')}
-                    />
-                    <Action
-                        icon={ArrowRightLeft}
-                        label="Transfer gudang"
-                        onClick={() => setDialog('transfer')}
-                    />
-                    <Action
-                        icon={ClipboardCheck}
-                        label="Stock opname"
-                        onClick={() => setDialog('opname')}
-                    />
-                    <Action
-                        icon={PackageMinus}
-                        label="Barang keluar"
-                        onClick={() => setDialog('adjustment')}
-                    />
-                    <Action
-                        icon={RotateCcw}
-                        label="Retur supplier"
-                        onClick={() => setDialog('return')}
-                    />
+                <div className="flex gap-2 overflow-x-auto rounded-xl border border-stone-200 bg-white p-2">
+                    {sections.map((section) => (
+                        <Action
+                            key={section.id}
+                            icon={section.icon}
+                            label={section.label}
+                            active={selectedSection.id === section.id}
+                            onClick={() =>
+                                router.get(
+                                    '/admin/inventory/operations',
+                                    { section: section.id },
+                                    { preserveState: true, replace: true },
+                                )
+                            }
+                        />
+                    ))}
                 </div>
-                <OperationSection
-                    title="Purchase order"
-                    rows={purchaseOrders}
-                    columns={[
-                        ['Nomor', 'po_number'],
-                        ['Supplier', 'supplier.name'],
-                        ['Total', 'total_amount'],
-                        ['Status', 'status'],
-                    ]}
-                    action={(row) =>
-                        row.status === 'draft' && (
-                            <div className="flex gap-2">
+                {activeSection === 'purchase-orders' && (
+                    <OperationSection
+                        title="Purchase order"
+                        rows={purchaseOrders}
+                        columns={[
+                            ['Nomor', 'po_number'],
+                            ['Supplier', 'supplier.name'],
+                            ['Total', 'total_amount'],
+                            ['Status', 'status'],
+                        ]}
+                        action={(row) =>
+                            row.status === 'draft' && (
+                                <div className="flex gap-2">
+                                    <Small
+                                        onClick={() =>
+                                            router.patch(
+                                                `/admin/inventory/purchase-orders/${row.id}/status`,
+                                                { status: 'sent' },
+                                            )
+                                        }
+                                    >
+                                        Kirim
+                                    </Small>
+                                    <Small
+                                        onClick={() =>
+                                            router.patch(
+                                                `/admin/inventory/purchase-orders/${row.id}/status`,
+                                                { status: 'cancelled' },
+                                            )
+                                        }
+                                    >
+                                        Batal
+                                    </Small>
+                                </div>
+                            )
+                        }
+                    />
+                )}
+                {activeSection === 'transfers' && (
+                    <OperationSection
+                        title="Transfer gudang"
+                        rows={transfers}
+                        columns={[
+                            ['Nomor', 'transfer_number'],
+                            ['Dari', 'from_warehouse.name'],
+                            ['Tujuan', 'to_warehouse.name'],
+                            ['Status', 'status'],
+                        ]}
+                        action={(row) =>
+                            row.status === 'draft' ? (
                                 <Small
                                     onClick={() =>
                                         router.patch(
-                                            `/admin/inventory/purchase-orders/${row.id}/status`,
-                                            { status: 'sent' },
+                                            `/admin/inventory/transfers/${row.id}/status`,
+                                            { status: 'in_transit' },
                                         )
                                     }
                                 >
-                                    Kirim
+                                    Setujui & kirim
                                 </Small>
+                            ) : row.status === 'in_transit' ? (
                                 <Small
                                     onClick={() =>
                                         router.patch(
-                                            `/admin/inventory/purchase-orders/${row.id}/status`,
-                                            { status: 'cancelled' },
+                                            `/admin/inventory/transfers/${row.id}/status`,
+                                            { status: 'received' },
                                         )
                                     }
                                 >
-                                    Batal
+                                    Terima
                                 </Small>
-                            </div>
-                        )
-                    }
-                />
-                <OperationSection
-                    title="Transfer gudang"
-                    rows={transfers}
-                    columns={[
-                        ['Nomor', 'transfer_number'],
-                        ['Dari', 'from_warehouse.name'],
-                        ['Tujuan', 'to_warehouse.name'],
-                        ['Status', 'status'],
-                    ]}
-                    action={(row) =>
-                        row.status === 'draft' ? (
-                            <Small
-                                onClick={() =>
-                                    router.patch(
-                                        `/admin/inventory/transfers/${row.id}/status`,
-                                        { status: 'in_transit' },
-                                    )
-                                }
-                            >
-                                Setujui & kirim
-                            </Small>
-                        ) : row.status === 'in_transit' ? (
-                            <Small
-                                onClick={() =>
-                                    router.patch(
-                                        `/admin/inventory/transfers/${row.id}/status`,
-                                        { status: 'received' },
-                                    )
-                                }
-                            >
-                                Terima
-                            </Small>
-                        ) : null
-                    }
-                />
-                <OperationSection
-                    title="Stock opname"
-                    rows={opnames}
-                    columns={[
-                        ['Nomor', 'opname_number'],
-                        ['Gudang', 'warehouse.name'],
-                        ['Jadwal', 'scheduled_date'],
-                        ['Status', 'status'],
-                    ]}
-                    action={(row) =>
-                        row.status !== 'completed' && (
-                            <Small onClick={() => beginCount(row)}>
-                                Input hitungan
-                            </Small>
-                        )
-                    }
-                />
-                <OperationSection
-                    title="Adjustment barang keluar"
-                    rows={adjustments}
-                    columns={[
-                        ['Produk', 'product.name'],
-                        ['Alasan', 'reason_type'],
-                        ['Qty', 'qty'],
-                        ['Status', 'status'],
-                    ]}
-                    action={(row) =>
-                        row.status === 'pending' &&
-                        permissions.includes(
-                            'inventory.adjustment.approve',
-                        ) && (
-                            <Small
-                                onClick={() =>
-                                    router.post(
-                                        `/admin/inventory/adjustments/${row.id}/approve`,
-                                    )
-                                }
-                            >
-                                Setujui
-                            </Small>
-                        )
-                    }
-                />
-                <OperationSection
-                    title="Retur supplier"
-                    rows={supplierReturns}
-                    columns={[
-                        ['Nomor', 'return_number'],
-                        ['Supplier', 'supplier.name'],
-                        ['Total', 'total_amount'],
-                        ['Status', 'status'],
-                    ]}
-                    action={(row) =>
-                        row.status === 'draft' && (
-                            <Small
-                                onClick={() =>
-                                    router.post(
-                                        `/admin/inventory/supplier-returns/${row.id}/complete`,
-                                    )
-                                }
-                            >
-                                Selesaikan retur
-                            </Small>
-                        )
-                    }
-                />
+                            ) : null
+                        }
+                    />
+                )}
+                {activeSection === 'opnames' && (
+                    <OperationSection
+                        title="Stock opname"
+                        rows={opnames}
+                        columns={[
+                            ['Nomor', 'opname_number'],
+                            ['Gudang', 'warehouse.name'],
+                            ['Jadwal', 'scheduled_date'],
+                            ['Status', 'status'],
+                        ]}
+                        action={(row) =>
+                            row.status !== 'completed' && (
+                                <Small onClick={() => beginCount(row)}>
+                                    Input hitungan
+                                </Small>
+                            )
+                        }
+                    />
+                )}
+                {activeSection === 'adjustments' && (
+                    <OperationSection
+                        title="Adjustment barang keluar"
+                        rows={adjustments}
+                        columns={[
+                            ['Produk', 'product.name'],
+                            ['Alasan', 'reason_type'],
+                            ['Qty', 'qty'],
+                            ['Status', 'status'],
+                        ]}
+                        action={(row) =>
+                            row.status === 'pending' &&
+                            permissions.includes(
+                                'inventory.adjustment.approve',
+                            ) && (
+                                <Small
+                                    onClick={() =>
+                                        router.post(
+                                            `/admin/inventory/adjustments/${row.id}/approve`,
+                                        )
+                                    }
+                                >
+                                    Setujui
+                                </Small>
+                            )
+                        }
+                    />
+                )}
+                {activeSection === 'returns' && (
+                    <OperationSection
+                        title="Retur supplier"
+                        rows={supplierReturns}
+                        columns={[
+                            ['Nomor', 'return_number'],
+                            ['Supplier', 'supplier.name'],
+                            ['Total', 'total_amount'],
+                            ['Status', 'status'],
+                        ]}
+                        action={(row) =>
+                            row.status === 'draft' && (
+                                <Small
+                                    onClick={() =>
+                                        router.post(
+                                            `/admin/inventory/supplier-returns/${row.id}/complete`,
+                                        )
+                                    }
+                                >
+                                    Selesaikan retur
+                                </Small>
+                            )
+                        }
+                    />
+                )}
             </div>
             <SimpleDialog
                 open={dialog === 'po'}
@@ -626,19 +671,21 @@ export default function InventoryOperations(props: any) {
 function Action({
     icon: Icon,
     label,
+    active,
     onClick,
 }: {
     icon: typeof Plus;
     label: string;
+    active: boolean;
     onClick: () => void;
 }) {
     return (
         <button
             onClick={onClick}
-            className="flex items-center gap-3 rounded-2xl border bg-white p-4 text-left font-semibold text-stone-800 transition hover:-translate-y-0.5 hover:border-lime-400 hover:shadow-md"
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${active ? 'border-lime-300 bg-lime-100 text-lime-900' : 'border-transparent bg-white text-stone-600 hover:border-stone-200 hover:bg-stone-50'}`}
         >
-            <span className="flex size-10 items-center justify-center rounded-xl bg-lime-100 text-lime-800">
-                <Icon className="size-5" />
+            <span className="flex size-7 items-center justify-center rounded-md bg-white text-lime-800">
+                <Icon className="size-4" />
             </span>
             {label}
         </button>

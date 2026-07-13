@@ -116,7 +116,7 @@ export default function Users({
     return (
         <AdminLayout title="Pengguna">
             <div className="space-y-6 p-4 md:p-8">
-                <div className="flex flex-col justify-between gap-4 rounded-2xl bg-stone-950 p-6 text-white md:flex-row md:items-center">
+                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 md:flex-row md:items-center">
                     <div>
                         <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
                             Kontrol akses
@@ -261,7 +261,7 @@ export default function Users({
                                 <Link
                                     key={link.label}
                                     href={link.url}
-                                    className={`rounded-lg px-3 py-1.5 text-xs ${link.active ? 'bg-stone-950 text-white' : 'border text-stone-600'}`}
+                                    className={`rounded-lg px-3 py-1.5 text-xs ${link.active ? 'bg-lime-200 text-lime-950' : 'border text-stone-600'}`}
                                     dangerouslySetInnerHTML={{
                                         __html: link.label,
                                     }}

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class PosProductController extends Controller
 {
@@ -35,18 +36,45 @@ class PosProductController extends Controller
 
         $products = $query->paginate(20);
         $products->getCollection()->transform(function (Product $product) use ($priceResolutionService, $request): array {
-            $price = $priceResolutionService->resolve($product, (int) $request->user()->store_id, (int) $product->base_unit_id, 1);
+            $storeId = (int) $request->user()->store_id;
+            $salesUnits = collect([
+                [
+                    'id' => (int) $product->base_unit_id,
+                    'name' => $product->baseUnit->name,
+                    'symbol' => $product->baseUnit->symbol,
+                    'conversion_qty' => 1,
+                ],
+                ...$product->productUnits
+                    ->where('is_sales_unit', true)
+                    ->where('unit_id', '!=', $product->base_unit_id)
+                    ->map(fn ($productUnit): array => [
+                        'id' => (int) $productUnit->unit_id,
+                        'name' => $productUnit->unit->name,
+                        'symbol' => $productUnit->unit->symbol,
+                        'conversion_qty' => (float) $productUnit->conversion_qty,
+                    ])
+                    ->values()
+                    ->all(),
+            ])->map(function (array $unit) use ($priceResolutionService, $product, $storeId): array {
+                $price = $priceResolutionService->resolve($product, $storeId, $unit['id'], 1);
+
+                return [...$unit, 'price' => $price === null ? null : (float) $price->price];
+            })->filter(fn (array $unit): bool => $unit['price'] !== null)->values();
+
+            $basePrice = $salesUnits->firstWhere('id', (int) $product->base_unit_id);
 
             return [
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
-                'image_primary_path' => $product->image_primary_path,
+                'category_id' => (int) $product->category_id,
+                'image_url' => $product->image_primary_path ? Storage::url($product->image_primary_path) : null,
                 'stock' => $product->stok_saat_ini,
-                'price_retail' => $price?->price,
+                'price_retail' => $basePrice['price'] ?? null,
                 'base_unit_id' => $product->base_unit_id,
                 'base_unit' => $product->baseUnit,
                 'default_warehouse_id' => $product->default_warehouse_id,
+                'sales_units' => $salesUnits,
             ];
         });
 

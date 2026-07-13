@@ -12,6 +12,7 @@ use App\Models\CashierShift;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\PromotionUsage;
+use App\Models\Receivable;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -79,12 +80,35 @@ class CheckoutPosAction
             $taxTotal = round((float) ($data['tax_total'] ?? 0), 2);
             $totalAmount = round(max(0, $subtotal - $itemDiscount - $globalDiscount + $taxTotal), 2);
             $paymentTotal = round((float) collect($data['payments'])->sum('amount'), 2);
+            $receivableTotal = round((float) collect($data['payments'])->where('method', 'piutang')->sum('amount'), 2);
+            $cashPaymentTotal = round((float) collect($data['payments'])->where('method', 'cash')->sum('amount'), 2);
+            $settledPaymentTotal = round(max(0, $paymentTotal - $receivableTotal), 2);
+            $paymentStatus = $receivableTotal <= 0
+                ? 'paid'
+                : ($settledPaymentTotal > 0 ? 'partial' : 'unpaid');
 
             if ($paymentTotal < $totalAmount) {
                 throw ValidationException::withMessages(['payments' => 'Jumlah pembayaran kurang dari total transaksi.']);
             }
 
-            $sale = $this->resolveSale($data, $storeId, $userId, $shift, $subtotal, $itemDiscount + $globalDiscount, $taxTotal, $totalAmount, $paymentTotal);
+            $changeAmount = max(0, round($paymentTotal - $totalAmount, 2));
+            if ($changeAmount > $cashPaymentTotal) {
+                throw ValidationException::withMessages(['payments' => 'Kelebihan pembayaran hanya dapat dikembalikan melalui pembayaran tunai.']);
+            }
+
+            $sale = $this->resolveSale(
+                $data,
+                $storeId,
+                $userId,
+                $shift,
+                $subtotal,
+                $itemDiscount + $globalDiscount,
+                $taxTotal,
+                $totalAmount,
+                $settledPaymentTotal,
+                $paymentTotal,
+                $paymentStatus,
+            );
             $runningBalances = [];
 
             foreach ($preparedItems as $preparedItem) {
@@ -125,6 +149,8 @@ class CheckoutPosAction
                 $product->update(['stok_saat_ini' => $currentQuantity]);
             }
 
+            $remainingCashToRecord = max(0, $cashPaymentTotal - $changeAmount);
+
             foreach ($data['payments'] as $paymentData) {
                 $sale->payments()->create([
                     'method' => $paymentData['method'],
@@ -133,9 +159,12 @@ class CheckoutPosAction
                 ]);
 
                 if ($paymentData['method'] === 'cash') {
+                    $cashMovementAmount = min((float) $paymentData['amount'], $remainingCashToRecord);
+                    $remainingCashToRecord = round($remainingCashToRecord - $cashMovementAmount, 2);
+
                     $shift->movements()->create([
                         'type' => 'in',
-                        'amount' => min((float) $paymentData['amount'], $totalAmount),
+                        'amount' => $cashMovementAmount,
                         'reason' => "Penjualan {$sale->sale_number}",
                         'created_by' => $userId,
                     ]);
@@ -144,6 +173,19 @@ class CheckoutPosAction
                 if ($paymentData['method'] === 'points' && ! empty($data['customer_id'])) {
                     $this->loyaltyService->redeem((int) $data['customer_id'], (int) $paymentData['amount'], Sale::class, $sale->id, notes: "Ditukar pada {$sale->sale_number}");
                 }
+            }
+
+            if ($receivableTotal > 0) {
+                Receivable::query()->updateOrCreate(
+                    ['sale_id' => $sale->id],
+                    [
+                        'customer_id' => $data['customer_id'],
+                        'amount' => min($receivableTotal, $totalAmount),
+                        'paid_amount' => 0,
+                        'due_date' => $data['receivable_due_date'],
+                        'status' => 'unpaid',
+                    ],
+                );
             }
 
             foreach ($promotionResult['applied_promotions'] as $promotion) {
@@ -184,7 +226,10 @@ class CheckoutPosAction
     private function prepareItems(array $items, int $storeId): array
     {
         return collect($items)->map(function (array $item) use ($storeId): array {
-            $product = Product::query()->lockForUpdate()->findOrFail($item['product_id']);
+            $product = Product::query()
+                ->where('store_id', $storeId)
+                ->lockForUpdate()
+                ->findOrFail($item['product_id']);
             $conversion = $this->conversionQuantity($product, (int) $item['unit_id']);
             $priceRow = $this->priceResolutionService->resolve($product, $storeId, (int) $item['unit_id'], (float) $item['qty']);
 
@@ -232,7 +277,10 @@ class CheckoutPosAction
     /** @param array<string, mixed> $freeItem @return array<string, mixed> */
     private function prepareFreeItem(array $freeItem, int $storeId): array
     {
-        $product = Product::query()->lockForUpdate()->findOrFail($freeItem['product_id']);
+        $product = Product::query()
+            ->where('store_id', $storeId)
+            ->lockForUpdate()
+            ->findOrFail($freeItem['product_id']);
         $price = $this->priceResolutionService->resolve($product, $storeId, (int) $product->base_unit_id, (float) $freeItem['qty']);
         if ($price === null) {
             throw ValidationException::withMessages(['promotion' => "Harga produk gratis {$product->name} belum dikonfigurasi."]);
@@ -252,11 +300,27 @@ class CheckoutPosAction
     }
 
     /** @param array<string, mixed> $data */
-    private function resolveSale(array $data, int $storeId, int $userId, CashierShift $shift, float $subtotal, float $discount, float $tax, float $total, float $paid): Sale
-    {
+    private function resolveSale(
+        array $data,
+        int $storeId,
+        int $userId,
+        CashierShift $shift,
+        float $subtotal,
+        float $discount,
+        float $tax,
+        float $total,
+        float $paid,
+        float $paymentCoverage,
+        string $paymentStatus,
+    ): Sale {
         $sale = ! empty($data['parked_sale_id'])
-            ? Sale::query()->whereKey($data['parked_sale_id'])->where('status', 'parked')->lockForUpdate()->firstOrFail()
-            : new Sale(['sale_number' => $this->nextSaleNumber($storeId), 'store_id' => $storeId, 'created_by' => $userId, 'channel' => 'pos']);
+        ? Sale::query()
+            ->whereKey($data['parked_sale_id'])
+            ->where('store_id', $storeId)
+            ->where('status', 'parked')
+            ->lockForUpdate()
+            ->firstOrFail()
+        : new Sale(['sale_number' => $this->nextSaleNumber($storeId), 'store_id' => $storeId, 'created_by' => $userId, 'channel' => 'pos']);
 
         if ($sale->exists) {
             $sale->items()->delete();
@@ -272,8 +336,8 @@ class CheckoutPosAction
             'tax_total' => $tax,
             'total_amount' => $total,
             'paid_amount' => $paid,
-            'change_amount' => max(0, round($paid - $total, 2)),
-            'payment_status' => $data['payment_status'] ?? 'paid',
+            'change_amount' => max(0, round($paymentCoverage - $total, 2)),
+            'payment_status' => $paymentStatus,
         ])->save();
 
         return $sale;

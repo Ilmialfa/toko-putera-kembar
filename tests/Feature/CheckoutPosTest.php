@@ -3,6 +3,7 @@
 use App\Domain\Sales\Actions\CheckoutPosAction;
 use App\Models\CashierShift;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use App\Models\StoreLocation;
@@ -114,5 +115,76 @@ it('can process pos checkout and deduct stock', function () {
         'product_id' => $product->id,
         'movement_type' => 'out',
         'qty' => 2,
+    ]);
+});
+
+it('records a receivable and only counts settled payment in the cashier drawer', function () {
+    $this->seed(ChartOfAccountSeeder::class);
+
+    $store = StoreLocation::factory()->create();
+    $warehouse = Warehouse::factory()->create(['store_location_id' => $store->id]);
+    $user = User::factory()->create(['store_id' => $store->id]);
+    $unit = Unit::factory()->create(['symbol' => 'PCS']);
+    $category = Category::factory()->create();
+    $product = Product::factory()->create([
+        'store_id' => $store->id,
+        'category_id' => $category->id,
+        'default_warehouse_id' => $warehouse->id,
+        'base_unit_id' => $unit->id,
+        'stok_saat_ini' => 10,
+        'hpp_current' => 5_000,
+    ]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'store_id' => $store->id,
+        'unit_id' => $unit->id,
+        'price_type' => 'retail',
+        'min_qty' => 1,
+        'price' => 10_000,
+        'channel' => 'both',
+        'is_active' => true,
+    ]);
+    $shift = CashierShift::factory()->create([
+        'store_id' => $store->id,
+        'user_id' => $user->id,
+        'status' => 'open',
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Pelanggan Tempo',
+        'phone' => '081234567890',
+    ]);
+
+    $sale = app(CheckoutPosAction::class)->execute([
+        'cashier_shift_id' => $shift->id,
+        'customer_id' => $customer->id,
+        'discount_total' => 0,
+        'tax_total' => 0,
+        'items' => [[
+            'product_id' => $product->id,
+            'unit_id' => $unit->id,
+            'qty' => 2,
+            'discount_amount' => 0,
+        ]],
+        'payments' => [
+            ['method' => 'cash', 'amount' => 5_000],
+            ['method' => 'piutang', 'amount' => 15_000],
+        ],
+        'receivable_due_date' => now()->addDays(30)->toDateString(),
+    ], $user->id, $store->id, $warehouse->id);
+
+    expect((float) $sale->paid_amount)->toBe(5_000.0)
+        ->and($sale->payment_status)->toBe('partial')
+        ->and((float) $sale->change_amount)->toBe(0.0);
+
+    $this->assertDatabaseHas('receivables', [
+        'sale_id' => $sale->id,
+        'customer_id' => $customer->id,
+        'amount' => 15_000,
+        'status' => 'unpaid',
+    ]);
+    $this->assertDatabaseHas('cash_movements', [
+        'cashier_shift_id' => $shift->id,
+        'type' => 'in',
+        'amount' => 5_000,
     ]);
 });

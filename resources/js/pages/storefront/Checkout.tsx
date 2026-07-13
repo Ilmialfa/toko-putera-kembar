@@ -71,14 +71,14 @@ export default function Checkout({ store, addresses, items, subtotal }: any) {
     return (
         <StorefrontLayout title="Checkout">
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
-                <div className="mb-8 rounded-3xl bg-stone-950 px-6 py-7 text-white md:px-9">
-                    <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
+                <div className="mb-8 rounded-3xl border border-stone-200 bg-white px-6 py-7 text-stone-800 md:px-9">
+                    <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
                         Checkout aman
                     </p>
                     <h1 className="mt-2 text-3xl font-bold tracking-tight">
                         Selesaikan pesanan Anda
                     </h1>
-                    <p className="mt-2 max-w-2xl text-sm text-stone-400">
+                    <p className="mt-2 max-w-2xl text-sm text-stone-500">
                         Harga dihitung ulang oleh sistem berdasarkan satuan,
                         jumlah, dan promo yang berlaku.
                     </p>
@@ -90,7 +90,7 @@ export default function Checkout({ store, addresses, items, subtotal }: any) {
                 >
                     <div className="space-y-6">
                         {/* Address Selection */}
-                        <div className="rounded-3xl border bg-card p-5 shadow-sm md:p-7">
+                        <div className="rounded-3xl border bg-card p-5 md:p-7">
                             <h2 className="mb-5 flex items-center gap-2 text-lg font-bold">
                                 <MapPin className="size-5 text-lime-600" />{' '}
                                 Informasi pengiriman

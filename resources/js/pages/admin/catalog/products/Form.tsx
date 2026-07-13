@@ -179,7 +179,7 @@ export default function ProductForm({
                         <Button
                             type="submit"
                             disabled={processing}
-                            className="bg-stone-950 text-white hover:bg-stone-800"
+                            className="bg-lime-300 text-lime-950 hover:bg-lime-200"
                         >
                             {processing ? 'Menyimpan…' : 'Simpan produk'}
                         </Button>
@@ -954,7 +954,7 @@ export default function ProductForm({
                                         <button
                                             type="button"
                                             aria-label="Hapus foto"
-                                            className="absolute top-2 right-2 rounded-full bg-white p-1.5 text-red-600 shadow"
+                                            className="absolute top-2 right-2 rounded-full border border-stone-200 bg-white p-1.5 text-red-600"
                                             onClick={() =>
                                                 setData('remove_image_ids', [
                                                     ...data.remove_image_ids,

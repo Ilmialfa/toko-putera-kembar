@@ -32,12 +32,12 @@ use App\Domain\Promotion\Controllers\VoucherValidationController;
 use App\Domain\Sales\Controllers\CashierShiftController;
 use App\Domain\Sales\Controllers\CheckoutController;
 use App\Domain\Sales\Controllers\ParkBillController;
+use App\Domain\Sales\Controllers\PosController;
 use App\Domain\Sales\Controllers\PosProductController;
 use App\Domain\Sales\Controllers\SaleReturnController;
 use App\Domain\Storefront\Controllers\AdminOrderController;
 use App\Domain\Storefront\Controllers\CartController;
 use App\Domain\Storefront\Controllers\CustomerAuthController;
-use App\Models\CashierShift;
 use App\Models\Sale;
 use App\Models\StoreLocation;
 use Illuminate\Http\Request;
@@ -149,14 +149,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // POS
         Route::prefix('pos')->name('pos.')->middleware('permission:manage pos')->group(function () {
-            Route::get('/', function (Request $request) {
-                $shift = CashierShift::where('user_id', $request->user()->id)
-                    ->where('store_id', $request->user()->store_id)
-                    ->where('status', 'open')
-                    ->first();
-
-                return Inertia\Inertia::render('pos/Index', ['currentShift' => $shift]);
-            })->name('index');
+            Route::get('/', [PosController::class, 'index'])->name('index');
 
             Route::get('shift/current', [CashierShiftController::class, 'current'])->name('shift.current');
             Route::post('shift/open', [CashierShiftController::class, 'open'])->name('shift.open');
@@ -166,7 +159,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('vouchers/validate', [VoucherValidationController::class, 'validateVoucher'])->name('vouchers.validate');
             Route::post('checkout', [CheckoutController::class, 'store'])->name('checkout');
 
-            Route::get('print/{sale}', function (Sale $sale) {
+            Route::get('print/{sale}', function (Request $request, Sale $sale) {
+                abort_unless((int) $sale->store_id === (int) $request->user()->store_id, 404);
+
                 return Inertia\Inertia::render('pos/PrintReceipt', [
                     'sale' => $sale->load('items.product'),
                     'store' => StoreLocation::find($sale->store_id),

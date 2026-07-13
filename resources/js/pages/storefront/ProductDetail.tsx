@@ -116,7 +116,7 @@ export default function ProductDetail({ product }: any) {
                                 />
                             ) : (
                                 <div className="flex h-full items-center justify-center">
-                                    <div className="flex size-40 items-center justify-center rounded-[2.5rem] bg-white text-5xl font-black shadow-xl">
+                                    <div className="flex size-40 items-center justify-center rounded-[2.5rem] border border-stone-200 bg-white text-5xl font-black">
                                         {product.name.slice(0, 2).toUpperCase()}
                                     </div>
                                 </div>
@@ -156,24 +156,24 @@ export default function ProductDetail({ product }: any) {
                         <p className="mt-5 leading-7 text-stone-600">
                             {product.description_short}
                         </p>
-                        <div className="mt-7 rounded-2xl bg-stone-950 p-5 text-white">
-                            <p className="text-xs font-semibold text-stone-400">
+                        <div className="mt-7 rounded-2xl border border-lime-200 bg-lime-50 p-5 text-stone-800">
+                            <p className="text-xs font-semibold text-stone-500">
                                 {product.display_price_prefix === 'from'
                                     ? 'Mulai dari'
                                     : 'Harga pilihan Anda'}
                             </p>
                             {quote ? (
                                 <>
-                                    <p className="mt-1 text-3xl font-black text-lime-300">
+                                    <p className="mt-1 text-3xl font-black text-lime-700">
                                         {money.format(quote.unit_price)}{' '}
-                                        <span className="text-base font-semibold text-stone-400">
+                                        <span className="text-base font-semibold text-stone-500">
                                             /{quote.unit_symbol}
                                         </span>
                                     </p>
-                                    <p className="mt-2 text-sm text-stone-300">
+                                    <p className="mt-2 text-sm text-stone-600">
                                         Subtotal {quantity}{' '}
                                         {selectedUnit?.symbol}:{' '}
-                                        <strong className="text-white">
+                                        <strong className="text-stone-800">
                                             {money.format(quote.subtotal)}
                                         </strong>
                                     </p>
@@ -202,7 +202,7 @@ export default function ProductDetail({ product }: any) {
                                             setUnitId(unit.id);
                                             setQuote(unit.quote);
                                         }}
-                                        className={`rounded-xl border p-3 text-left transition ${unitId === unit.id ? 'border-stone-950 bg-stone-950 text-white' : 'border-stone-200 bg-white hover:border-lime-500'}`}
+                                        className={`rounded-xl border p-3 text-left transition ${unitId === unit.id ? 'border-lime-300 bg-lime-100 text-lime-950' : 'border-stone-200 bg-white hover:border-lime-500'}`}
                                     >
                                         <span className="block text-sm font-bold">
                                             {unit.name}

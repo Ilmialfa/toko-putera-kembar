@@ -87,7 +87,7 @@ export default function OrderShow({ order }: Props) {
                 >
                     <ArrowLeft className="size-4" /> Kembali ke pesanan
                 </Link>
-                <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl bg-[#171a15] p-6 text-white sm:flex-row sm:items-center">
+                <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 sm:flex-row sm:items-center">
                     <div>
                         <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
                             Detail pesanan

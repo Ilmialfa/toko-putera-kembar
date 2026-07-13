@@ -14,8 +14,8 @@ export default function AuthSimpleLayout({
 }: AuthLayoutProps) {
     return (
         <div className="grid min-h-svh bg-[#f7f5ef] lg:grid-cols-[1.08fr_0.92fr]">
-            <section className="relative hidden overflow-hidden bg-stone-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-                <div className="absolute -top-32 -right-24 size-96 rounded-full bg-lime-400/20 blur-3xl" />
+            <section className="relative hidden overflow-hidden border-r border-stone-200 bg-lime-50 p-12 text-stone-800 lg:flex lg:flex-col lg:justify-between">
+                <div className="absolute -top-32 -right-24 size-96 rounded-full bg-lime-300/40 blur-3xl" />
                 <Link
                     href="/"
                     className="relative flex items-center gap-3 font-bold"
@@ -26,13 +26,13 @@ export default function AuthSimpleLayout({
                     <span>Toko Putera Kembar</span>
                 </Link>
                 <div className="relative max-w-xl">
-                    <p className="text-xs font-bold tracking-[0.2em] text-lime-400 uppercase">
+                    <p className="text-xs font-bold tracking-[0.2em] text-lime-700 uppercase">
                         Retail operating system
                     </p>
                     <h2 className="mt-4 text-5xl leading-[1.08] font-bold tracking-tight">
                         Satu pusat kendali untuk toko yang tumbuh.
                     </h2>
-                    <p className="mt-5 text-base leading-7 text-stone-400">
+                    <p className="mt-5 text-base leading-7 text-stone-600">
                         Pantau penjualan, stok, pesanan online, promo, dan
                         keuangan dalam pengalaman kerja yang lebih tenang.
                     </p>
@@ -42,12 +42,12 @@ export default function AuthSimpleLayout({
                         <Feature icon={BadgeCheck} label="Akses aman" />
                     </div>
                 </div>
-                <p className="relative text-xs text-stone-500">
+                <p className="relative text-xs text-stone-600">
                     Backoffice internal · Toko Putera Kembar
                 </p>
             </section>
             <section className="flex items-center justify-center p-5 sm:p-10">
-                <div className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-7 shadow-[0_25px_80px_-35px_rgba(28,25,23,.35)] sm:p-9">
+                <div className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-7 sm:p-9">
                     <Link
                         href="/"
                         className="mb-8 flex items-center gap-3 font-bold lg:hidden"
@@ -83,9 +83,9 @@ function Feature({
     label: string;
 }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <Icon className="mb-3 size-5 text-lime-400" />
-            <span className="text-stone-300">{label}</span>
+        <div className="rounded-2xl border border-lime-200 bg-white/70 p-4">
+            <Icon className="mb-3 size-5 text-lime-700" />
+            <span className="text-stone-700">{label}</span>
         </div>
     );
 }

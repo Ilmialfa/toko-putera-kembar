@@ -21,7 +21,7 @@ class CheckoutController extends Controller
         );
 
         return response()->json([
-            'message' => 'Checkout successful',
+            'message' => 'Checkout berhasil diproses.',
             'sale' => $sale,
         ]);
     }

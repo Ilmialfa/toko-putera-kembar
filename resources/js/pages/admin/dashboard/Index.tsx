@@ -44,7 +44,7 @@ interface Props {
     };
 }
 
-const COLORS = ['#a3e635', '#171a15', '#facc15', '#fb923c', '#22c55e'];
+const COLORS = ['#84cc16', '#0ea5e9', '#facc15', '#fb923c', '#22c55e'];
 
 export default function DashboardIndex({ metrics, charts, alerts }: Props) {
     const formatRupiah = (value: number) => {
@@ -60,14 +60,14 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
             <Head title="Dashboard" />
 
             <div className="p-4 sm:p-6 lg:p-8">
-                <div className="mb-7 overflow-hidden rounded-2xl bg-[#171a15] px-6 py-7 text-white shadow-sm sm:px-8">
-                    <p className="mb-2 text-xs font-bold tracking-[0.2em] text-lime-400 uppercase">
+                <div className="mb-7 overflow-hidden rounded-2xl border border-stone-200 bg-white px-6 py-7 text-stone-800 sm:px-8">
+                    <p className="mb-2 text-xs font-bold tracking-[0.2em] text-lime-700 uppercase">
                         Ikhtisar operasional
                     </p>
                     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                         Ringkasan bisnis bulan ini
                     </h1>
-                    <p className="mt-2 max-w-2xl text-sm text-white/55">
+                    <p className="mt-2 max-w-2xl text-sm text-stone-500">
                         Pantau performa penjualan, arus kas, dan persediaan toko
                         dari satu tempat.
                     </p>
@@ -75,7 +75,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
 
                 {/* Metrics Cards */}
                 <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-6">
                         <div>
                             <p className="mb-1 text-sm font-medium text-gray-500">
                                 Total Pendapatan
@@ -89,7 +89,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-6">
                         <div>
                             <p className="mb-1 text-sm font-medium text-gray-500">
                                 Total Pengeluaran
@@ -103,7 +103,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-6">
                         <div>
                             <p className="mb-1 text-sm font-medium text-gray-500">
                                 Laba Bersih
@@ -119,7 +119,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-white p-6">
                         <div>
                             <p className="mb-1 text-sm font-medium text-gray-500">
                                 Piutang Pelanggan
@@ -137,7 +137,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                 {/* Charts & Alerts */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                     {/* Sales Trend Chart */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
+                    <div className="rounded-xl border border-stone-200 bg-white p-6 lg:col-span-2">
                         <h3 className="mb-4 flex items-center text-lg font-bold text-gray-900">
                             <TrendingUp className="mr-2 h-5 w-5 text-gray-500" />
                             Tren Penjualan (7 Hari Terakhir)
@@ -179,9 +179,8 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                                         ]}
                                         contentStyle={{
                                             borderRadius: '8px',
-                                            border: 'none',
-                                            boxShadow:
-                                                '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                            border: '1px solid #e7e5e4',
+                                            boxShadow: 'none',
                                         }}
                                     />
                                     <Line
@@ -199,7 +198,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
 
                     {/* Right Column: Payment Methods & Low Stock */}
                     <div className="space-y-6">
-                        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                        <div className="rounded-xl border border-stone-200 bg-white p-6">
                             <h3 className="mb-4 flex items-center text-lg font-bold text-gray-900">
                                 <CreditCard className="mr-2 h-5 w-5 text-gray-500" />
                                 Metode Pembayaran
@@ -251,7 +250,7 @@ export default function DashboardIndex({ metrics, charts, alerts }: Props) {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                        <div className="rounded-xl border border-stone-200 bg-white p-6">
                             <h3 className="mb-4 flex items-center text-lg font-bold text-gray-900 text-red-600">
                                 <AlertCircle className="mr-2 h-5 w-5" />
                                 Peringatan Stok Menipis

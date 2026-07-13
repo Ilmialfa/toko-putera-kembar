@@ -48,12 +48,12 @@ export default function TagIndex({ tags, filters }: any) {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        router.get('/admin/catalog/tags', { search }, { preserveState: true });
+        router.get('/admin/master/tags', { search }, { preserveState: true });
     };
 
     const handleCreateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/admin/catalog/tags', {
+        post('/admin/master/tags', {
             onSuccess: () => {
                 setIsCreateOpen(false);
                 reset();
@@ -76,7 +76,7 @@ export default function TagIndex({ tags, filters }: any) {
             return;
         }
 
-        put(`/admin/catalog/tags/${editingTag.id}`, {
+        put(`/admin/master/tags/${editingTag.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
                 reset();
@@ -86,7 +86,7 @@ export default function TagIndex({ tags, filters }: any) {
 
     const handleDelete = (tag: Tag) => {
         if (confirm(`Are you sure you want to delete ${tag.name}?`)) {
-            destroy(`/admin/catalog/tags/${tag.id}`);
+            destroy(`/admin/master/tags/${tag.id}`);
         }
     };
 

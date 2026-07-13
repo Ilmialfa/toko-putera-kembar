@@ -72,25 +72,25 @@ export default function StorefrontIndex({
             {!filters.search && !filters.category && !filters.brand && (
                 <>
                     <section className="px-4 pt-5 md:pt-8">
-                        <div className="relative mx-auto grid max-w-7xl overflow-hidden rounded-[2rem] bg-stone-950 text-white lg:grid-cols-[1.05fr_0.95fr]">
+                        <div className="relative mx-auto grid max-w-7xl overflow-hidden rounded-[2rem] border border-stone-200 bg-white text-stone-800 lg:grid-cols-[1.05fr_0.95fr]">
                             <div className="relative z-10 flex flex-col justify-center px-6 py-12 md:px-12 md:py-16 lg:py-20">
-                                <span className="w-fit rounded-full border border-lime-300/30 bg-lime-300/10 px-3 py-1.5 text-xs font-bold tracking-[0.16em] text-lime-300 uppercase">
+                                <span className="w-fit rounded-full border border-lime-300 bg-lime-100 px-3 py-1.5 text-xs font-bold tracking-[0.16em] text-lime-800 uppercase">
                                     Grosir lokal, dibuat lebih mudah
                                 </span>
                                 <h1 className="mt-6 max-w-xl text-4xl leading-[1.05] font-black tracking-[-0.04em] md:text-6xl">
                                     Stok warung lengkap.{' '}
-                                    <span className="text-lime-300">
+                                    <span className="text-lime-700">
                                         Harga selalu jelas.
                                     </span>
                                 </h1>
-                                <p className="mt-5 max-w-lg text-base leading-7 text-stone-300">
+                                <p className="mt-5 max-w-lg text-base leading-7 text-stone-600">
                                     Belanja per ons, pcs, renteng, hingga dus.
                                     Harga otomatis menyesuaikan jumlah dan
                                     status member Anda.
                                 </p>
                                 <form
                                     onSubmit={submit}
-                                    className="mt-8 flex max-w-xl rounded-2xl bg-white p-1.5 shadow-2xl"
+                                    className="mt-8 flex max-w-xl rounded-2xl border border-stone-200 bg-white p-1.5"
                                 >
                                     <Search className="ml-3 size-5 self-center text-stone-400" />
                                     <input
@@ -105,29 +105,29 @@ export default function StorefrontIndex({
                                         Cari
                                     </button>
                                 </form>
-                                <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-stone-300">
+                                <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-stone-600">
                                     <span className="flex items-center gap-2">
-                                        <ShieldCheck className="size-4 text-lime-300" />
+                                        <ShieldCheck className="size-4 text-lime-700" />
                                         Produk terjamin
                                     </span>
                                     <span className="flex items-center gap-2">
-                                        <Truck className="size-4 text-lime-300" />
+                                        <Truck className="size-4 text-lime-700" />
                                         Antar area Pekanbaru
                                     </span>
                                     <span className="flex items-center gap-2">
-                                        <PackageCheck className="size-4 text-lime-300" />
+                                        <PackageCheck className="size-4 text-lime-700" />
                                         Stok real-time
                                     </span>
                                 </div>
                             </div>
                             <div className="relative hidden min-h-[520px] overflow-hidden lg:block">
-                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_40%,rgba(163,230,53,0.25),transparent_45%)]" />
-                                <div className="absolute top-16 right-16 left-10 rotate-3 rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_40%,rgba(163,230,53,0.35),transparent_45%)]" />
+                                <div className="absolute top-16 right-16 left-10 rotate-3 rounded-[2rem] border border-stone-200 bg-stone-50 p-6">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold tracking-widest text-lime-300 uppercase">
+                                        <span className="text-xs font-bold tracking-widest text-lime-700 uppercase">
                                             Harga fleksibel
                                         </span>
-                                        <BadgePercent className="size-6 text-lime-300" />
+                                        <BadgePercent className="size-6 text-lime-700" />
                                     </div>
                                     <div className="mt-12 rounded-2xl bg-white p-5 text-stone-950">
                                         <p className="text-sm font-semibold text-stone-500">
@@ -161,7 +161,7 @@ export default function StorefrontIndex({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="absolute right-8 bottom-8 rounded-2xl bg-lime-400 p-5 text-stone-950 shadow-2xl">
+                                <div className="absolute right-8 bottom-8 rounded-2xl border border-lime-300 bg-lime-100 p-5 text-stone-800">
                                     <ShoppingBag className="size-6" />
                                     <p className="mt-3 text-sm font-bold">
                                         Belanja sesuai kebutuhan
@@ -305,7 +305,7 @@ export default function StorefrontIndex({
                     <div className="mt-7 flex gap-2 overflow-x-auto pb-2">
                         <button
                             onClick={() => apply({ category: undefined })}
-                            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${!filters.category ? 'bg-stone-950 text-white' : 'border border-stone-200 bg-white text-stone-600'}`}
+                            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${!filters.category ? 'border border-lime-300 bg-lime-100 text-lime-950' : 'border border-stone-200 bg-white text-stone-600'}`}
                         >
                             Semua
                         </button>
@@ -315,7 +315,7 @@ export default function StorefrontIndex({
                                 onClick={() =>
                                     apply({ category: category.slug })
                                 }
-                                className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filters.category === category.slug ? 'bg-stone-950 text-white' : 'border border-stone-200 bg-white text-stone-600'}`}
+                                className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filters.category === category.slug ? 'border border-lime-300 bg-lime-100 text-lime-950' : 'border border-stone-200 bg-white text-stone-600'}`}
                             >
                                 {category.name}
                             </button>
@@ -356,7 +356,7 @@ export default function StorefrontIndex({
                                     key={link.label}
                                     href={link.url}
                                     preserveScroll
-                                    className={`rounded-xl px-3 py-2 text-xs font-semibold ${link.active ? 'bg-stone-950 text-white' : 'border bg-white text-stone-600'}`}
+                                    className={`rounded-xl px-3 py-2 text-xs font-semibold ${link.active ? 'border border-lime-300 bg-lime-100 text-lime-950' : 'border bg-white text-stone-600'}`}
                                     dangerouslySetInnerHTML={{
                                         __html: link.label,
                                     }}
@@ -396,7 +396,7 @@ function ProductCard({ product }: { product: Product }) {
     const disabled = product.stock_status === 'out_of_stock';
 
     return (
-        <article className="group overflow-hidden rounded-2xl border border-stone-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-stone-300 hover:shadow-xl hover:shadow-stone-200/60">
+        <article className="group overflow-hidden rounded-2xl border border-stone-200 bg-white transition duration-300 hover:border-lime-300">
             <Link href={`/product/${product.slug}`} prefetch>
                 <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(145deg,#f1f5e9,#e7eadf)]">
                     {product.images?.[0] ? (
@@ -408,7 +408,7 @@ function ProductCard({ product }: { product: Product }) {
                         />
                     ) : (
                         <div className="flex h-full items-center justify-center">
-                            <div className="flex size-20 items-center justify-center rounded-[1.6rem] bg-white text-2xl font-black text-stone-800 shadow-lg">
+                            <div className="flex size-20 items-center justify-center rounded-[1.6rem] border border-stone-200 bg-white text-2xl font-black text-stone-800">
                                 {product.name.slice(0, 2).toUpperCase()}
                             </div>
                         </div>
@@ -451,7 +451,7 @@ function ProductCard({ product }: { product: Product }) {
                             )}
                         </div>
                         <span
-                            className={`flex size-10 items-center justify-center rounded-xl ${disabled ? 'bg-stone-100 text-stone-400' : 'bg-lime-400 text-stone-950 group-hover:bg-stone-950 group-hover:text-white'}`}
+                            className={`flex size-10 items-center justify-center rounded-xl ${disabled ? 'bg-stone-100 text-stone-400' : 'bg-lime-300 text-lime-950 group-hover:bg-lime-200'}`}
                         >
                             <ArrowRight className="size-4" />
                         </span>

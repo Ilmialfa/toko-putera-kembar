@@ -28,6 +28,7 @@ class ProductController extends Controller
 
         $products = Product::query()
             ->with(['category', 'brand', 'baseUnit'])
+            ->where('store_id', $request->user()->store_id)
             ->when($search, function ($query, $search) {
                 // If using FULLTEXT:
                 // $query->whereRaw('MATCH(name, description_short) AGAINST(? IN BOOLEAN MODE)', [$search]);
@@ -78,6 +79,7 @@ class ProductController extends Controller
 
     public function edit(Product $product): Response
     {
+        $this->ensureProductBelongsToCurrentStore($product, request());
         $product->load(['barcodes', 'productUnits.unit', 'images', 'prices.unit', 'prices.customerGroup']);
 
         return Inertia::render('admin/catalog/products/Form', [
@@ -93,9 +95,11 @@ class ProductController extends Controller
 
     public function update(SaveProductRequest $request, Product $product): RedirectResponse
     {
+        $this->ensureProductBelongsToCurrentStore($product, $request);
+
         DB::transaction(function () use ($request, $product): void {
             $validated = $request->validated();
-            $product->update($this->productAttributes($validated, $request));
+            $product->update($this->productAttributes($validated, $request, $product));
             $this->syncRelations($product, $validated, $request);
         });
 
@@ -104,6 +108,7 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
+        $this->ensureProductBelongsToCurrentStore($product, request());
         $product->delete();
 
         return redirect()->back()->with('success', 'Produk berhasil dinonaktifkan.');
@@ -113,28 +118,40 @@ class ProductController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>
      */
-    private function productAttributes(array $validated, Request $request): array
+    private function productAttributes(array $validated, Request $request, ?Product $product = null): array
     {
+        $storeId = $product instanceof Product ? $product->store_id : $request->user()->store_id;
+        $createdBy = $product instanceof Product ? $product->created_by : $request->user()->id;
+
         return collect($validated)
             ->except(['barcodes', 'units', 'prices', 'images', 'remove_image_ids'])
             ->merge([
-                'online_display_unit_id' => $validated['online_display_unit_id'] ?: $validated['base_unit_id'],
-                'created_by' => $request->route('product') ? $request->route('product')->created_by : $request->user()->id,
+                'store_id' => $storeId,
+                'online_display_unit_id' => $validated['online_display_unit_id'] ?? $validated['base_unit_id'],
+                'created_by' => $createdBy,
                 'updated_by' => $request->user()->id,
             ])
             ->all();
+    }
+
+    private function ensureProductBelongsToCurrentStore(Product $product, Request $request): void
+    {
+        abort_unless(
+            (int) $product->store_id === (int) $request->user()->store_id,
+            404,
+        );
     }
 
     /** @param array<string, mixed> $validated */
     private function syncRelations(Product $product, array $validated, Request $request): void
     {
         $product->barcodes()->delete();
-        foreach ($validated['barcodes'] as $barcode) {
+        foreach ($validated['barcodes'] ?? [] as $barcode) {
             $product->barcodes()->create($barcode);
         }
 
         $product->productUnits()->delete();
-        foreach ($validated['units'] as $unit) {
+        foreach ($validated['units'] ?? [] as $unit) {
             $product->productUnits()->create($unit);
         }
 
@@ -148,7 +165,7 @@ class ProductController extends Controller
             ]);
         }
 
-        $imagesToRemove = $product->images()->whereIn('id', $validated['remove_image_ids'])->get();
+        $imagesToRemove = $product->images()->whereIn('id', $validated['remove_image_ids'] ?? [])->get();
         foreach ($imagesToRemove as $image) {
             Storage::disk('public')->delete($image->path);
             $image->delete();

@@ -5,16 +5,19 @@ namespace App\Domain\Sales\Controllers;
 use App\Domain\Sales\Actions\ParkBillAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ParkBillController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $shiftId = $request->query('cashier_shift_id');
         $query = Sale::where('store_id', $request->user()->store_id)
             ->where('status', 'parked')
-            ->with('items.product');
+            ->where('created_by', $request->user()->id)
+            ->with(['customer:id,name,phone', 'items.product.baseUnit', 'items.unit']);
 
         if ($shiftId) {
             $query->where('cashier_shift_id', $shiftId);
@@ -25,11 +28,17 @@ class ParkBillController extends Controller
         ]);
     }
 
-    public function store(Request $request, ParkBillAction $action)
+    public function store(Request $request, ParkBillAction $action): JsonResponse
     {
         $validated = $request->validate([
-            'cashier_shift_id' => 'required|exists:cashier_shifts,id',
-            'customer_id' => 'nullable|exists:users,id',
+            'cashier_shift_id' => [
+                'required',
+                Rule::exists('cashier_shifts', 'id')
+                    ->where('user_id', $request->user()->id)
+                    ->where('store_id', $request->user()->store_id)
+                    ->where('status', 'open'),
+            ],
+            'customer_id' => 'nullable|exists:customers,id',
             'subtotal' => 'required|numeric|min:0',
             'discount_total' => 'required|numeric|min:0',
             'tax_total' => 'required|numeric|min:0',
@@ -50,19 +59,25 @@ class ParkBillController extends Controller
         );
 
         return response()->json([
-            'message' => 'Bill parked successfully',
+            'message' => 'Transaksi berhasil ditahan.',
             'sale' => $sale,
         ]);
     }
 
-    public function destroy(Sale $sale)
+    public function destroy(Request $request, Sale $parkedBill): JsonResponse
     {
-        // Cancel a parked bill
-        if ($sale->status !== 'parked') {
-            abort(403, 'Can only delete parked bills');
-        }
-        $sale->delete();
+        abort_unless(
+            (int) $parkedBill->store_id === (int) $request->user()->store_id
+                && (int) $parkedBill->created_by === (int) $request->user()->id
+                && $parkedBill->status === 'parked',
+            403,
+            'Hanya transaksi ditahan milik Anda dari toko ini yang dapat dibatalkan.',
+        );
 
-        return response()->json(['message' => 'Parked bill deleted']);
+        $parkedBill->delete();
+
+        return response()->json([
+            'message' => 'Transaksi ditahan berhasil dibatalkan.',
+        ]);
     }
 }

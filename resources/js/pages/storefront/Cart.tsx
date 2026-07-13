@@ -157,35 +157,35 @@ export default function Cart({ cart }: any) {
                                 </article>
                             ))}
                         </div>
-                        <aside className="h-fit rounded-3xl bg-stone-950 p-6 text-white lg:sticky lg:top-28">
+                        <aside className="h-fit rounded-3xl border border-stone-200 bg-white p-6 text-stone-800 lg:sticky lg:top-28">
                             <h2 className="text-xl font-black">
                                 Ringkasan belanja
                             </h2>
                             <div className="mt-6 space-y-3 text-sm">
-                                <div className="flex justify-between text-stone-400">
+                                <div className="flex justify-between text-stone-500">
                                     <span>Subtotal produk</span>
-                                    <span className="text-white">
+                                    <span className="text-stone-800">
                                         {money.format(subtotal)}
                                     </span>
                                 </div>
-                                <div className="flex justify-between text-stone-400">
+                                <div className="flex justify-between text-stone-500">
                                     <span>Diskon campaign</span>
-                                    <span className="text-lime-300">
+                                    <span className="text-lime-700">
                                         Dihitung saat checkout
                                     </span>
                                 </div>
-                                <div className="flex justify-between text-stone-400">
+                                <div className="flex justify-between text-stone-500">
                                     <span>Pengiriman</span>
-                                    <span className="text-white">
+                                    <span className="text-stone-800">
                                         Berdasarkan jarak
                                     </span>
                                 </div>
                             </div>
-                            <div className="mt-6 flex justify-between border-t border-white/10 pt-5">
+                            <div className="mt-6 flex justify-between border-t border-stone-200 pt-5">
                                 <span className="font-semibold">
                                     Estimasi subtotal
                                 </span>
-                                <span className="text-2xl font-black text-lime-300">
+                                <span className="text-2xl font-black text-lime-700">
                                     {money.format(subtotal)}
                                 </span>
                             </div>

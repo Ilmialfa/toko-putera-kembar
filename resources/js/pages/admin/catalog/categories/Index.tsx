@@ -56,7 +56,7 @@ export default function CategoryIndex({ categories, filters }: any) {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         router.get(
-            '/admin/catalog/categories',
+            '/admin/master/categories',
             { search },
             { preserveState: true },
         );
@@ -64,7 +64,7 @@ export default function CategoryIndex({ categories, filters }: any) {
 
     const handleCreateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/admin/catalog/categories', {
+        post('/admin/master/categories', {
             onSuccess: () => {
                 setIsCreateOpen(false);
                 reset();
@@ -90,7 +90,7 @@ export default function CategoryIndex({ categories, filters }: any) {
             return;
         }
 
-        put(`/admin/catalog/categories/${editingCategory.id}`, {
+        put(`/admin/master/categories/${editingCategory.id}`, {
             onSuccess: () => {
                 setIsEditOpen(false);
                 reset();
@@ -100,7 +100,7 @@ export default function CategoryIndex({ categories, filters }: any) {
 
     const handleDelete = (category: Category) => {
         if (confirm(`Are you sure you want to delete ${category.name}?`)) {
-            destroy(`/admin/catalog/categories/${category.id}`);
+            destroy(`/admin/master/categories/${category.id}`);
         }
     };
 

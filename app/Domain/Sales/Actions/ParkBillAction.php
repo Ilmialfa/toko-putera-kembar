@@ -50,7 +50,7 @@ class ParkBillAction
                 ]);
             }
 
-            return $sale->load('items.product');
+            return $sale->load(['customer:id,name,phone', 'items.product.baseUnit', 'items.unit']);
         });
     }
 }
