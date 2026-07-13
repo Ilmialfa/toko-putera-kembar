@@ -317,7 +317,10 @@ function NavMenuItem({
                                                 : false
                                         }
                                     >
-                                        <Link href={child.href!}>
+                                        <Link
+                                            href={child.href!}
+                                            className="flex min-w-0 items-center gap-2 whitespace-nowrap"
+                                        >
                                             {child.icon && (
                                                 <child.icon className="mr-1 h-3.5 w-3.5" />
                                             )}
@@ -365,23 +368,31 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         .filter((item) => !item.children || item.children.length > 0);
 
     return (
-        <SidebarProvider>
+        <SidebarProvider
+            style={{ '--sidebar-width': '18rem' } as React.CSSProperties}
+        >
             {title && <Head title={title} />}
             <div className="flex h-screen w-full overflow-hidden bg-background">
                 {/* Admin Sidebar */}
                 <Sidebar>
                     <SidebarHeader className="border-b border-sidebar-border p-4">
-                        <Link
-                            href="/admin/dashboard"
-                            className="flex items-center gap-2 text-lg font-bold hover:opacity-80"
-                        >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                                PK
-                            </div>
-                            <span className="text-sidebar-foreground">
-                                Putera Kembar
-                            </span>
-                        </Link>
+                        <div className="flex items-center justify-between gap-2">
+                            <Link
+                                href="/admin/dashboard"
+                                className="flex min-w-0 items-center gap-2 text-lg font-bold hover:opacity-80"
+                            >
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+                                    PK
+                                </div>
+                                <span className="truncate text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+                                    Putera Kembar
+                                </span>
+                            </Link>
+                            <SidebarTrigger
+                                className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden"
+                                title="Kecilkan sidebar"
+                            />
+                        </div>
                     </SidebarHeader>
 
                     <SidebarContent className="px-2 py-2">
@@ -401,7 +412,17 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                         </SidebarGroup>
                     </SidebarContent>
 
-                    <SidebarFooter className="border-t border-sidebar-border p-3">
+                    <SidebarFooter className="space-y-2 border-t border-sidebar-border p-3">
+                        <Link
+                            href="/"
+                            target="_blank"
+                            className="flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-sidebar-foreground transition-colors group-data-[collapsible=icon]:justify-center hover:bg-sidebar-accent"
+                        >
+                            <Store className="size-4 shrink-0" />
+                            <span className="group-data-[collapsible=icon]:hidden">
+                                Buka Storefront
+                            </span>
+                        </Link>
                         <div className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground">
                             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                                 {auth?.user?.name?.charAt(0)?.toUpperCase() ??
@@ -430,22 +451,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
                 {/* Main Content */}
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-6">
-                        <SidebarTrigger className="text-muted-foreground" />
-                        <div className="h-5 w-px bg-border" />
+                    <header className="flex h-14 shrink-0 items-center border-b border-border bg-card px-6">
                         <h1 className="text-sm font-semibold text-foreground">
                             {title || 'Admin Panel'}
                         </h1>
-                        <div className="ml-auto flex items-center gap-3">
-                            <Link
-                                href="/"
-                                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                                target="_blank"
-                            >
-                                <Store className="h-3.5 w-3.5" />
-                                <span>Storefront</span>
-                            </Link>
-                        </div>
                     </header>
                     <main className="flex-1 overflow-auto">{children}</main>
                 </div>

@@ -1,12 +1,5 @@
 import { router, useForm, usePage } from '@inertiajs/react';
-import {
-    ArrowRightLeft,
-    ClipboardCheck,
-    PackageMinus,
-    Plus,
-    RotateCcw,
-    ShoppingCart,
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -81,31 +74,26 @@ export default function InventoryOperations(props: any) {
         {
             id: 'purchase-orders',
             label: 'Purchase Order',
-            icon: ShoppingCart,
             dialog: 'po',
         },
         {
             id: 'transfers',
             label: 'Transfer Gudang',
-            icon: ArrowRightLeft,
             dialog: 'transfer',
         },
         {
             id: 'opnames',
             label: 'Stock Opname',
-            icon: ClipboardCheck,
             dialog: 'opname',
         },
         {
             id: 'adjustments',
             label: 'Penyesuaian Stok',
-            icon: PackageMinus,
             dialog: 'adjustment',
         },
         {
             id: 'returns',
             label: 'Retur Supplier',
-            icon: RotateCcw,
             dialog: 'return',
         },
     ];
@@ -197,23 +185,6 @@ export default function InventoryOperations(props: any) {
                         Buat {selectedSection.label}
                     </Button>
                 </header>
-                <div className="flex gap-2 overflow-x-auto rounded-xl border border-stone-200 bg-white p-2">
-                    {sections.map((section) => (
-                        <Action
-                            key={section.id}
-                            icon={section.icon}
-                            label={section.label}
-                            active={selectedSection.id === section.id}
-                            onClick={() =>
-                                router.get(
-                                    '/admin/inventory/operations',
-                                    { section: section.id },
-                                    { preserveState: true, replace: true },
-                                )
-                            }
-                        />
-                    ))}
-                </div>
                 {activeSection === 'purchase-orders' && (
                     <OperationSection
                         title="Purchase order"
@@ -668,29 +639,6 @@ export default function InventoryOperations(props: any) {
     );
 }
 
-function Action({
-    icon: Icon,
-    label,
-    active,
-    onClick,
-}: {
-    icon: typeof Plus;
-    label: string;
-    active: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            onClick={onClick}
-            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${active ? 'border-lime-300 bg-lime-100 text-lime-900' : 'border-transparent bg-white text-stone-600 hover:border-stone-200 hover:bg-stone-50'}`}
-        >
-            <span className="flex size-7 items-center justify-center rounded-md bg-white text-lime-800">
-                <Icon className="size-4" />
-            </span>
-            {label}
-        </button>
-    );
-}
 function OperationSection({
     title,
     rows,
