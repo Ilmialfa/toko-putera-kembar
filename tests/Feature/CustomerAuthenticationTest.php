@@ -10,6 +10,16 @@ it('keeps internal staff registration closed to the public', function () {
     $this->post('/register', [])->assertNotFound();
 });
 
+it('uses a dedicated customer login page instead of the staff login', function () {
+    $this->get('/akun/masuk')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('storefront/auth/Login'));
+
+    $this->get('/akun/daftar')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('storefront/auth/Register'));
+});
+
 it('allows customers to register with the dedicated customer guard', function () {
     $response = $this->post('/akun/daftar', [
         'name' => 'Sari Pelanggan',
@@ -22,6 +32,8 @@ it('allows customers to register with the dedicated customer guard', function ()
     $response->assertRedirect(route('customer.account'));
     expect(Customer::query()->where('phone', '081234567890')->exists())->toBeTrue()
         ->and(auth('customer')->check())->toBeTrue();
+
+    $this->get(route('customer.account'))->assertOk();
 });
 
 it('allows customers to sign in using their phone number', function () {

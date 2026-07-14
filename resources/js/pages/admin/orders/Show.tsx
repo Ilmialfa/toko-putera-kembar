@@ -16,6 +16,7 @@ interface Props {
         order_number: string;
         recipient_name: string;
         recipient_phone: string;
+        delivery_method: 'delivery' | 'pickup';
         delivery_address: string;
         distance_km: string;
         subtotal: string;
@@ -53,17 +54,44 @@ const statusLabels: Record<string, string> = {
     cancelled: 'Dibatalkan',
 };
 
-const nextStatuses: Record<string, string[]> = {
+// Transisi untuk delivery (harus lewat tahap siapkan & kirim)
+const nextStatusesDelivery: Record<string, string[]> = {
     confirmed: ['preparing'],
-    preparing: ['ready_for_pickup'],
-    ready_for_pickup: ['out_for_delivery', 'completed'],
+    preparing: ['out_for_delivery'],
     out_for_delivery: ['completed'],
     pending_payment: ['cancelled'],
     payment_verification: ['cancelled'],
 };
 
+// Transisi untuk pickup (setelah konfirmasi langsung bisa selesai)
+const nextStatusesPickup: Record<string, string[]> = {
+    confirmed: ['preparing', 'completed'],
+    preparing: ['completed'],
+    pending_payment: ['cancelled'],
+    payment_verification: ['cancelled'],
+};
+
+const actionLabels: Record<string, string> = {
+    preparing: '🗂️ Tandai: Sedang Disiapkan',
+    out_for_delivery: '🚚 Tandai: Sedang Dikirim',
+    completed: '✅ Tandai: Selesai / Sudah Dibayar',
+    cancelled: '✖ Batalkan Pesanan',
+};
+
+const paymentMethodLabels: Record<string, string> = {
+    qris: 'QRIS',
+    cash: 'Tunai (Cash)',
+    bank_transfer: 'Transfer Bank',
+    e_wallet: 'E-Wallet',
+};
+
 export default function OrderShow({ order }: Props) {
     const [processing, setProcessing] = useState(false);
+
+    const nextStatuses =
+        order.delivery_method === 'pickup'
+            ? nextStatusesPickup
+            : nextStatusesDelivery;
 
     const confirm = () => {
         setProcessing(true);
@@ -75,6 +103,22 @@ export default function OrderShow({ order }: Props) {
     };
 
     const changeStatus = (status: string) => {
+        if (
+            status === 'completed' &&
+            !window.confirm(
+                'Tandai pesanan ini sebagai Selesai? Pastikan barang sudah diserahkan dan pembayaran diterima.',
+            )
+        ) {
+            return;
+        }
+
+        if (
+            status === 'cancelled' &&
+            !window.confirm('Batalkan pesanan ini? Stok akan dikembalikan.')
+        ) {
+            return;
+        }
+
         router.patch(updateStatus(order.id).url, { status });
     };
 
@@ -89,29 +133,41 @@ export default function OrderShow({ order }: Props) {
                 </Link>
                 <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 sm:flex-row sm:items-center">
                     <div>
-                        <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
+                        <p className="text-xs font-bold tracking-[0.18em] text-lime-700 uppercase">
                             Detail pesanan
                         </p>
-                        <h1 className="mt-2 text-2xl font-bold">
+                        <h1 className="mt-2 text-2xl font-bold text-stone-900">
                             {order.order_number}
                         </h1>
-                        <p className="mt-1 text-sm text-white/55">
-                            {statusLabels[order.status] ?? order.status}
+                        <p className="mt-1 text-sm text-stone-500">
+                            {statusLabels[order.status] ?? order.status} ·{' '}
+                            {paymentMethodLabels[order.payment_method] ??
+                                order.payment_method}
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {order.payment_proof_path && (
-                            <Button
-                                variant="outline"
-                                className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-                                asChild
-                            >
+                            <Button variant="outline" asChild>
                                 <a href={paymentProof(order.id).url}>
                                     <FileCheck2 className="size-4" /> Lihat
                                     Bukti
                                 </a>
                             </Button>
                         )}
+                        {/* Konfirmasi manual untuk Cash di pending_payment */}
+                        {order.status === 'pending_payment' &&
+                            order.payment_method === 'cash' && (
+                                <Button
+                                    onClick={confirm}
+                                    disabled={processing}
+                                    className="bg-emerald-600 hover:bg-emerald-500"
+                                >
+                                    <PackageCheck className="size-4" />{' '}
+                                    {processing
+                                        ? 'Memproses...'
+                                        : 'Konfirmasi Pesanan Cash'}
+                                </Button>
+                            )}
                         {order.status === 'payment_verification' && (
                             <Button onClick={confirm} disabled={processing}>
                                 <PackageCheck className="size-4" />{' '}
@@ -123,10 +179,21 @@ export default function OrderShow({ order }: Props) {
                         {(nextStatuses[order.status] ?? []).map((status) => (
                             <Button
                                 key={status}
-                                variant="secondary"
+                                variant={
+                                    status === 'completed'
+                                        ? 'default'
+                                        : status === 'cancelled'
+                                          ? 'destructive'
+                                          : 'secondary'
+                                }
                                 onClick={() => changeStatus(status)}
+                                className={
+                                    status === 'completed'
+                                        ? 'bg-emerald-600 hover:bg-emerald-500'
+                                        : ''
+                                }
                             >
-                                {statusLabels[status]}
+                                {actionLabels[status] ?? statusLabels[status]}
                             </Button>
                         ))}
                     </div>

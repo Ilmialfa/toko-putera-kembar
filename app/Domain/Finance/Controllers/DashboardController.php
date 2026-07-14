@@ -9,13 +9,31 @@ use App\Models\Product;
 use App\Models\Receivable;
 use App\Models\Sale;
 use App\Models\SalePayment;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if (! $request->user()->can('finance.view')) {
+            if ($request->user()->can('pos.use')) {
+                return redirect()->route('admin.pos.index');
+            }
+
+            if ($request->user()->can('orders.view')) {
+                return redirect()->route('admin.orders.index');
+            }
+
+            if ($request->user()->can('inventory.view')) {
+                return redirect()->route('admin.inventory.reports.index');
+            }
+
+            abort(403);
+        }
+
         $startOfMonth = now()->startOfMonth()->toDateString();
 
         $incomeThisMonth = Sale::query()

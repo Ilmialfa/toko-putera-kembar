@@ -39,6 +39,7 @@ it('creates an online order with a soft stock reservation', function () {
     $cart->items()->create(['product_id' => $product->id, 'unit_id' => $unit->id, 'qty' => 2]);
 
     $order = app(CheckoutOnlineAction::class)->execute($cart, $store, [
+        'delivery_method' => 'pickup',
         'recipient_name' => 'Andi Pelanggan',
         'phone' => '081234567890',
         'full_address' => 'Jalan Sudirman, Pekanbaru',
@@ -48,6 +49,7 @@ it('creates an online order with a soft stock reservation', function () {
     ], null, 'guest-session');
 
     expect((float) $order->subtotal)->toBe(25000.0)
+        ->and($order->delivery_method)->toBe('pickup')
         ->and($order->items)->toHaveCount(1)
         ->and($order->reservations)->toHaveCount(1)
         ->and((float) $product->refresh()->stok_saat_ini)->toBe(20.0);

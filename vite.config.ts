@@ -36,8 +36,8 @@ export default defineConfig({
             manifest: {
                 name: 'Toko Putera Kembar',
                 short_name: 'TPK App',
-                theme_color: '#1c1917',
-                background_color: '#f7f5ef',
+                theme_color: '#ffffff',
+                background_color: '#ffffff',
                 display: 'standalone',
                 scope: '/',
                 start_url: '/',

@@ -65,6 +65,8 @@ export default function Create({
         warehouse_id: '',
         invoice_number: '',
         payment_status: 'paid',
+        paid_amount: '0',
+        due_date: '',
         details: [] as DetailForm[],
     });
 
@@ -133,7 +135,7 @@ export default function Create({
         <AdminLayout>
             <Head title="Catat Barang Masuk" />
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" asChild>
                         <Link href={stockInRoutes.index.url()}>
@@ -282,6 +284,74 @@ export default function Create({
                                             </p>
                                         )}
                                     </div>
+
+                                    {data.payment_status === 'partial' && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="paid_amount">
+                                                Nominal Dibayar{' '}
+                                                <span className="text-red-500">
+                                                    *
+                                                </span>
+                                            </Label>
+                                            <Input
+                                                id="paid_amount"
+                                                type="text"
+                                                value={
+                                                    data.paid_amount
+                                                        ? new Intl.NumberFormat(
+                                                              'id-ID',
+                                                          ).format(
+                                                              Number(
+                                                                  data.paid_amount,
+                                                              ),
+                                                          )
+                                                        : ''
+                                                }
+                                                onChange={(e) => {
+                                                    const raw =
+                                                        e.target.value.replace(
+                                                            /\D/g,
+                                                            '',
+                                                        );
+                                                    setData('paid_amount', raw);
+                                                }}
+                                            />
+                                            {errors.paid_amount && (
+                                                <p className="text-sm text-red-500">
+                                                    {errors.paid_amount}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {['credit', 'partial'].includes(
+                                        data.payment_status,
+                                    ) && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="due_date">
+                                                Jatuh Tempo{' '}
+                                                <span className="text-red-500">
+                                                    *
+                                                </span>
+                                            </Label>
+                                            <Input
+                                                id="due_date"
+                                                type="date"
+                                                value={data.due_date}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'due_date',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                            />
+                                            {errors.due_date && (
+                                                <p className="text-sm text-red-500">
+                                                    {errors.due_date}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
@@ -479,23 +549,32 @@ export default function Create({
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         <Input
-                                                                            type="number"
-                                                                            min="0"
-                                                                            step="1"
+                                                                            type="text"
                                                                             value={
                                                                                 item.purchase_price_per_unit
+                                                                                    ? new Intl.NumberFormat(
+                                                                                          'id-ID',
+                                                                                      ).format(
+                                                                                          Number(
+                                                                                              item.purchase_price_per_unit,
+                                                                                          ),
+                                                                                      )
+                                                                                    : ''
                                                                             }
                                                                             onChange={(
                                                                                 e,
-                                                                            ) =>
+                                                                            ) => {
+                                                                                const raw =
+                                                                                    e.target.value.replace(
+                                                                                        /\D/g,
+                                                                                        '',
+                                                                                    );
                                                                                 updateDetail(
                                                                                     index,
                                                                                     'purchase_price_per_unit',
-                                                                                    e
-                                                                                        .target
-                                                                                        .value,
-                                                                                )
-                                                                            }
+                                                                                    raw,
+                                                                                );
+                                                                            }}
                                                                         />
                                                                     </TableCell>
                                                                     <TableCell>

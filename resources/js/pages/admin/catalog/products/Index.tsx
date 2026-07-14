@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { PackageOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,6 +50,7 @@ export default function ProductIndex({
     categories,
     filters,
 }: ProductIndexProps) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [categoryId, setCategoryId] = useState(
         String(filters.category_id ?? ''),
@@ -63,11 +65,15 @@ export default function ProductIndex({
         );
     };
 
-    const handleDelete = (product: Product) => {
+    const handleDelete = async (product: Product) => {
         if (
-            window.confirm(
-                `Hapus produk “${product.name}”? Tindakan ini tidak dapat dibatalkan.`,
-            )
+            await confirm({
+                title: `Hapus produk ${product.name}?`,
+                description:
+                    'Produk dan pengaturan harganya tidak dapat dipulihkan setelah dihapus.',
+                confirmLabel: 'Hapus produk',
+                destructive: true,
+            })
         ) {
             router.delete(`/admin/master/products/${product.id}`, {
                 preserveScroll: true,

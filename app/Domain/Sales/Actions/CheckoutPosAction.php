@@ -5,6 +5,7 @@ namespace App\Domain\Sales\Actions;
 use App\Domain\Catalog\Services\PriceResolutionService;
 use App\Domain\Inventory\Services\FifoAllocationService;
 use App\Domain\Promotion\Services\LoyaltyPointService;
+use App\Domain\Promotion\Services\LoyaltySettingsService;
 use App\Domain\Promotion\Services\PromotionEngine;
 use App\Domain\Sales\Events\SaleCompleted;
 use App\Enums\ProductType;
@@ -14,6 +15,7 @@ use App\Models\ProductUnit;
 use App\Models\PromotionUsage;
 use App\Models\Receivable;
 use App\Models\Sale;
+use App\Models\StoreLocation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +25,7 @@ class CheckoutPosAction
     public function __construct(
         private FifoAllocationService $fifoService,
         private LoyaltyPointService $loyaltyService,
+        private LoyaltySettingsService $loyaltySettingsService,
         private PriceResolutionService $priceResolutionService,
         private PromotionEngine $promotionEngine,
     ) {}
@@ -32,6 +35,8 @@ class CheckoutPosAction
     {
         return DB::transaction(function () use ($data, $userId, $storeId, $warehouseId): Sale {
             $user = User::query()->findOrFail($userId);
+            $store = StoreLocation::query()->findOrFail($storeId);
+            $loyaltySettings = $this->loyaltySettingsService->forStore($store);
             $shift = CashierShift::query()
                 ->whereKey($data['cashier_shift_id'])
                 ->where('user_id', $userId)
@@ -79,6 +84,12 @@ class CheckoutPosAction
 
             $taxTotal = round((float) ($data['tax_total'] ?? 0), 2);
             $totalAmount = round(max(0, $subtotal - $itemDiscount - $globalDiscount + $taxTotal), 2);
+            $data['payments'] = $this->normalisePointPayments(
+                $data['payments'],
+                $data['customer_id'] ?? null,
+                $totalAmount,
+                $loyaltySettings,
+            );
             $paymentTotal = round((float) collect($data['payments'])->sum('amount'), 2);
             $receivableTotal = round((float) collect($data['payments'])->where('method', 'piutang')->sum('amount'), 2);
             $cashPaymentTotal = round((float) collect($data['payments'])->where('method', 'cash')->sum('amount'), 2);
@@ -171,7 +182,15 @@ class CheckoutPosAction
                 }
 
                 if ($paymentData['method'] === 'points' && ! empty($data['customer_id'])) {
-                    $this->loyaltyService->redeem((int) $data['customer_id'], (int) $paymentData['amount'], Sale::class, $sale->id, notes: "Ditukar pada {$sale->sale_number}");
+                    $this->loyaltyService->redeem(
+                        (int) $data['customer_id'],
+                        (int) $paymentData['points_to_redeem'],
+                        Sale::class,
+                        $sale->id,
+                        (int) $paymentData['maximum_points'],
+                        "Ditukar pada {$sale->sale_number}",
+                        (int) $loyaltySettings['redeem_min_points'],
+                    );
                 }
             }
 
@@ -200,16 +219,34 @@ class CheckoutPosAction
                 ]);
             }
 
-            if (! empty($data['customer_id']) && $totalAmount > 0) {
-                $points = (int) floor(($totalAmount / 10000) * $promotionResult['point_multiplier']);
+            if (! empty($data['customer_id']) && $totalAmount > 0 && $loyaltySettings['enabled']) {
+                $points = (int) floor(
+                    ($totalAmount / (int) $loyaltySettings['earn_spend_amount'])
+                    * (int) $loyaltySettings['earn_points']
+                    * $promotionResult['point_multiplier'],
+                );
 
                 if ($points > 0) {
-                    $this->loyaltyService->earn((int) $data['customer_id'], $points, Sale::class, $sale->id, "Diperoleh dari {$sale->sale_number}");
+                    $this->loyaltyService->earn(
+                        (int) $data['customer_id'],
+                        $points,
+                        Sale::class,
+                        $sale->id,
+                        "Diperoleh dari {$sale->sale_number}",
+                        (int) $loyaltySettings['expiry_months'],
+                    );
                 }
 
                 $cashbackPoints = (int) floor($promotionResult['cashback_total'] / 1000);
                 if ($cashbackPoints > 0) {
-                    $this->loyaltyService->earn((int) $data['customer_id'], $cashbackPoints, Sale::class, $sale->id, "Cashback dari {$sale->sale_number}");
+                    $this->loyaltyService->earn(
+                        (int) $data['customer_id'],
+                        $cashbackPoints,
+                        Sale::class,
+                        $sale->id,
+                        "Cashback dari {$sale->sale_number}",
+                        (int) $loyaltySettings['expiry_months'],
+                    );
                 }
             }
 
@@ -217,6 +254,63 @@ class CheckoutPosAction
 
             return $sale->load(['items.product', 'payments']);
         }, attempts: 3);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $payments
+     * @param  array<string, int|bool>  $loyaltySettings
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalisePointPayments(array $payments, ?int $customerId, float $totalAmount, array $loyaltySettings): array
+    {
+        $pointPayments = collect($payments)->where('method', 'points')->values();
+
+        if ($pointPayments->isEmpty()) {
+            return $payments;
+        }
+
+        if (! $loyaltySettings['enabled']) {
+            throw ValidationException::withMessages(['payments' => 'Penukaran poin sedang tidak aktif.']);
+        }
+
+        if ($customerId === null) {
+            throw ValidationException::withMessages(['customer_id' => 'Pilih pelanggan sebelum menggunakan poin.']);
+        }
+
+        if ($pointPayments->count() > 1) {
+            throw ValidationException::withMessages(['payments' => 'Poin hanya dapat digunakan pada satu baris pembayaran.']);
+        }
+
+        $pointsToRedeem = (int) ($pointPayments->first()['points_to_redeem'] ?? 0);
+        $redemptionValue = (int) $loyaltySettings['redeem_value'];
+        $maximumByTransaction = (int) floor(
+            min(
+                (float) $loyaltySettings['redeem_max_points'],
+                floor(($totalAmount * ((int) $loyaltySettings['redeem_max_percentage'] / 100)) / $redemptionValue),
+                $this->loyaltyService->getBalance($customerId),
+            ),
+        );
+
+        if ($pointsToRedeem < (int) $loyaltySettings['redeem_min_points']) {
+            throw ValidationException::withMessages(['payments' => "Minimal penggunaan adalah {$loyaltySettings['redeem_min_points']} poin."]);
+        }
+
+        if ($pointsToRedeem > $maximumByTransaction) {
+            throw ValidationException::withMessages(['payments' => "Poin yang dapat digunakan maksimal {$maximumByTransaction} poin pada transaksi ini."]);
+        }
+
+        return collect($payments)->map(function (array $payment) use ($pointsToRedeem, $redemptionValue, $maximumByTransaction): array {
+            if ($payment['method'] !== 'points') {
+                return $payment;
+            }
+
+            return [
+                ...$payment,
+                'amount' => $pointsToRedeem * $redemptionValue,
+                'points_to_redeem' => $pointsToRedeem,
+                'maximum_points' => $maximumByTransaction,
+            ];
+        })->all();
     }
 
     /**

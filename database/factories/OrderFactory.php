@@ -25,6 +25,7 @@ class OrderFactory extends Factory
             'recipient_name' => fake()->name(),
             'recipient_phone' => fake()->numerify('08##########'),
             'delivery_address' => fake()->address(),
+            'delivery_method' => 'delivery',
             'delivery_latitude' => 0.5071,
             'delivery_longitude' => 101.4478,
             'distance_km' => 2.5,

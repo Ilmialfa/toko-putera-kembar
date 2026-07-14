@@ -2,6 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { BadgeCheck, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -35,6 +36,7 @@ interface BrandIndexProps {
 }
 
 export default function BrandIndex({ brands, filters }: BrandIndexProps) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -91,8 +93,15 @@ export default function BrandIndex({ brands, filters }: BrandIndexProps) {
         });
     };
 
-    const removeBrand = (brand: Brand) => {
-        if (confirm(`Hapus merek "${brand.name}"?`)) {
+    const removeBrand = async (brand: Brand) => {
+        if (
+            await confirm({
+                title: `Hapus merek ${brand.name}?`,
+                description: 'Merek akan dihapus dari katalog produk.',
+                confirmLabel: 'Hapus merek',
+                destructive: true,
+            })
+        ) {
             destroy(`/admin/master/brands/${brand.id}`);
         }
     };

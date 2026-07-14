@@ -146,7 +146,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'PT. Distributor Utama',
                 'phone' => '021-5550001',
-                'address' => 'Jl. Raya Distributor No. 1, Jakarta',
+                'address' => 'Jl. Raya Distributor No. 1, Pekanbaru, Riau',
                 'is_active' => true,
                 'store_id' => 1,
             ]
@@ -455,6 +455,12 @@ class DatabaseSeeder extends Seeder
                 );
             }
         }
+
+        $this->call([
+            CatalogExpansionSeeder::class,
+            StorefrontCmsSeeder::class,
+            StorefrontContentSeeder::class,
+        ]);
     }
 
     private function createProductionOwner(): void

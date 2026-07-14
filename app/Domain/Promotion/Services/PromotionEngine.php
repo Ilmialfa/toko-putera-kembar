@@ -114,8 +114,11 @@ class PromotionEngine
             if ($promotion->type === 'voucher') {
                 $netSubtotal = max(0, $subtotal - $discountTotal);
                 $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, $netSubtotal, 1);
-            } elseif ($promotion->type === 'bundling' && $this->bundleSatisfied($promotion, $preparedItems)) {
-                $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, max(0, $subtotal - $discountTotal), 1);
+            } elseif ($promotion->type === 'bundling') {
+                $bundleGroups = $this->bundleGroups($promotion, $preparedItems);
+                if ($bundleGroups > 0) {
+                    $amount = $this->discountAmount((string) $reward->reward_type, (float) $reward->value, max(0, $subtotal - $discountTotal), $bundleGroups);
+                }
             } elseif ($promotion->type === 'bxgy') {
                 $promoFreeItems = $this->freeItems($promotion, $preparedItems);
             } elseif ($promotion->type === 'cashback') {
@@ -267,13 +270,22 @@ class PromotionEngine
     }
 
     /** @param array<int,array<string,mixed>> $items */
-    private function bundleSatisfied(Promotion $promotion, array $items): bool
+    private function bundleGroups(Promotion $promotion, array $items): int
     {
-        return $promotion->conditions->every(function ($condition) use ($items): bool {
-            return collect($items)->contains(fn (array $item): bool => $condition->conditionable_type === 'product'
-                && (int) $item['product_id'] === (int) $condition->conditionable_id
-                && (float) $item['qty'] >= (float) ($condition->min_qty ?? 1));
-        });
+        if ($promotion->conditions->isEmpty()) {
+            return 0;
+        }
+
+        return (int) $promotion->conditions
+            ->map(function ($condition) use ($items): int {
+                $quantity = (float) collect($items)
+                    ->filter(fn (array $item): bool => $condition->conditionable_type === 'product'
+                        && (int) $item['product_id'] === (int) $condition->conditionable_id)
+                    ->sum('qty');
+
+                return (int) floor($quantity / max(0.001, (float) ($condition->min_qty ?? 1)));
+            })
+            ->min();
     }
 
     /** @param array<int,array<string,mixed>> $items @return array<int,array<string,mixed>> */

@@ -67,10 +67,17 @@ it('creates a product under the authenticated owner store', function () {
             'is_sellable' => true,
             'sellable_pos' => true,
             'sellable_online' => true,
+            'hpp_current' => 0,
             'is_preorder' => false,
             'track_batch' => false,
             'track_expiry' => false,
             'track_serial_number' => false,
+            'units' => [[
+                'unit_id' => $unit->id,
+                'conversion_qty' => 1,
+                'is_purchase_unit' => true,
+                'is_sales_unit' => true,
+            ]],
             'prices' => [[
                 'unit_id' => $unit->id,
                 'price_type' => 'retail',

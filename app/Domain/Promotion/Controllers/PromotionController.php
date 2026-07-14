@@ -13,6 +13,7 @@ use App\Models\StoreLocation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -134,9 +135,18 @@ class PromotionController extends Controller
     private function persist(Promotion $promotion, array $data, Request $request): void
     {
         DB::transaction(function () use ($promotion, $data, $request): void {
-            $attributes = collect($data)->except(['conditions', 'rewards', 'vouchers', 'voucher_quantity', 'voucher_prefix'])->all();
+            $attributes = collect($data)->except(['conditions', 'rewards', 'vouchers', 'voucher_quantity', 'voucher_prefix', 'storefront_image'])->all();
             $attributes['is_active'] = $data['status'] === 'active';
             $attributes['created_by'] = $promotion->exists ? $promotion->created_by : $request->user()->id;
+
+            if ($request->hasFile('storefront_image')) {
+                if ($promotion->storefront_image_path !== null) {
+                    Storage::disk('public')->delete($promotion->storefront_image_path);
+                }
+
+                $attributes['storefront_image_path'] = $request->file('storefront_image')->store('promotions', 'public');
+            }
+
             $promotion->fill($attributes)->save();
 
             $promotion->conditions()->delete();

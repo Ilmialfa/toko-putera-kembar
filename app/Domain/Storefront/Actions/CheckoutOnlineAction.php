@@ -41,16 +41,27 @@ class CheckoutOnlineAction
                 throw new RuntimeException('Keranjang belanja kosong.');
             }
 
-            $address = $this->resolveAddress($data, $customerId);
-            $latitude = (float) ($address === null ? $data['latitude'] : $address->latitude);
-            $longitude = (float) ($address === null ? $data['longitude'] : $address->longitude);
-            $distance = $this->distanceInKilometres((float) $store->latitude, (float) $store->longitude, $latitude, $longitude);
+            $deliveryMethod = $data['delivery_method'] ?? 'delivery';
+            $isPickup = $deliveryMethod === 'pickup';
+
+            $address = $isPickup ? null : $this->resolveAddress($data, $customerId);
+
+            if ($isPickup) {
+                $latitude = (float) $store->latitude;
+                $longitude = (float) $store->longitude;
+                $distance = 0.0;
+            } else {
+                $latitude = (float) ($address === null ? $data['latitude'] : $address->latitude);
+                $longitude = (float) ($address === null ? $data['longitude'] : $address->longitude);
+                $distance = $this->distanceInKilometres((float) $store->latitude, (float) $store->longitude, $latitude, $longitude);
+            }
+
             $settingsAttribute = $store->getAttribute('settings');
             $storeSettings = is_array($settingsAttribute) ? $settingsAttribute : [];
-            $maximumRadius = (float) ($storeSettings['max_delivery_radius_km'] ?? $store->delivery_radius_km ?? 10);
+            $maximumRadius = (float) ($storeSettings['max_delivery_radius_km'] ?? $store->delivery_radius_km ?? 3);
 
-            if ($distance > $maximumRadius) {
-                throw new RuntimeException("Alamat berada di luar jangkauan pengiriman {$maximumRadius} km.");
+            if (! $isPickup && $distance > $maximumRadius) {
+                throw new RuntimeException("Alamat berada di luar jangkauan pengiriman {$maximumRadius} km. Silakan pilih ambil di toko.");
             }
 
             $paymentProofPath = $paymentProof?->store('payment-proofs', 'local');
@@ -60,13 +71,14 @@ class CheckoutOnlineAction
                 'customer_id' => $customerId,
                 'guest_token' => $customerId === null ? Str::random(64) : null,
                 'customer_address_id' => $address?->id,
-                'recipient_name' => $address === null ? $data['recipient_name'] : $address->recipient_name,
-                'recipient_phone' => $address === null ? $data['phone'] : $address->phone,
-                'delivery_address' => $address === null ? $data['full_address'] : $address->full_address,
+                'recipient_name' => $isPickup ? $data['recipient_name'] : ($address === null ? $data['recipient_name'] : $address->recipient_name),
+                'recipient_phone' => $isPickup ? $data['phone'] : ($address === null ? $data['phone'] : $address->phone),
+                'delivery_address' => $isPickup ? 'Ambil di Toko' : ($address === null ? $data['full_address'] : $address->full_address),
+                'delivery_method' => $deliveryMethod,
                 'delivery_latitude' => $latitude,
                 'delivery_longitude' => $longitude,
                 'distance_km' => $distance,
-                'delivery_fee' => $this->deliveryFee($distance, $store),
+                'delivery_fee' => $this->deliveryFee($distance, $store, $isPickup),
                 'subtotal' => 0,
                 'discount_total' => 0,
                 'total_amount' => 0,
@@ -123,6 +135,10 @@ class CheckoutOnlineAction
                     'status' => 'active',
                     'expires_at' => now()->addMinutes(15),
                 ]);
+            }
+
+            if (! $isPickup && $subtotal < 150000) {
+                throw new RuntimeException('Minimal belanja untuk pengiriman adalah Rp 150.000. Silakan pilih ambil di toko atau tambah pesanan.');
             }
 
             $order->load('items.product');
@@ -223,23 +239,9 @@ class CheckoutOnlineAction
         return round($earthRadius * 2 * atan2(sqrt($value), sqrt(1 - $value)), 2);
     }
 
-    private function deliveryFee(float $distance, StoreLocation $store): float
+    private function deliveryFee(float $distance, StoreLocation $store, bool $isPickup): float
     {
-        $settings = $store->getAttribute('settings');
-        $tiers = is_array($settings) ? ($settings['delivery_fee_tiers'] ?? null) : null;
-
-        if (is_array($tiers)) {
-            foreach ($tiers as $tier) {
-                if ($distance <= (float) $tier['max_km']) {
-                    return (float) $tier['fee'];
-                }
-            }
-        }
-
-        return match (true) {
-            $distance <= 3 => 5000,
-            $distance <= 7 => 10000,
-            default => 15000,
-        };
+        // Gratis ongkir maksimal 3 km jika memenuhi syarat belanja.
+        return 0.0;
     }
 }

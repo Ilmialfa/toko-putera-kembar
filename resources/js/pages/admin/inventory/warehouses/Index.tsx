@@ -1,5 +1,6 @@
 import { useForm, router } from '@inertiajs/react';
 import React, { useState } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -39,6 +40,7 @@ export default function WarehouseIndex({
     storeLocations,
     filters,
 }: any) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search || '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -110,8 +112,16 @@ export default function WarehouseIndex({
         });
     };
 
-    const handleDelete = (warehouse: Warehouse) => {
-        if (confirm(`Are you sure you want to delete ${warehouse.name}?`)) {
+    const handleDelete = async (warehouse: Warehouse) => {
+        if (
+            await confirm({
+                title: `Hapus gudang ${warehouse.name}?`,
+                description:
+                    'Gudang ini akan dihapus dari data operasional toko.',
+                confirmLabel: 'Hapus gudang',
+                destructive: true,
+            })
+        ) {
             destroy(`/admin/inventory/warehouses/${warehouse.id}`);
         }
     };
@@ -133,12 +143,12 @@ export default function WarehouseIndex({
 
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button>Add Warehouse</Button>
+                        <Button>Tambah Gudang</Button>
                     </DialogTrigger>
                     <DialogContent>
                         <form onSubmit={handleCreateSubmit}>
                             <DialogHeader>
-                                <DialogTitle>Add New Warehouse</DialogTitle>
+                                <DialogTitle>Tambah Gudang</DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div>
@@ -237,7 +247,7 @@ export default function WarehouseIndex({
                                     variant="outline"
                                     onClick={() => setIsCreateOpen(false)}
                                 >
-                                    Cancel
+                                    Batal
                                 </Button>
                                 <Button type="submit" disabled={processing}>
                                     Save
@@ -308,7 +318,7 @@ export default function WarehouseIndex({
                 <DialogContent>
                     <form onSubmit={handleEditSubmit}>
                         <DialogHeader>
-                            <DialogTitle>Edit Warehouse</DialogTitle>
+                            <DialogTitle>Ubah Gudang</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             <div>
@@ -407,7 +417,7 @@ export default function WarehouseIndex({
                                 variant="outline"
                                 onClick={() => setIsEditOpen(false)}
                             >
-                                Cancel
+                                Batal
                             </Button>
                             <Button type="submit" disabled={processing}>
                                 Update

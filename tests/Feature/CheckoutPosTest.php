@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Promotion\Services\LoyaltyPointService;
 use App\Domain\Sales\Actions\CheckoutPosAction;
 use App\Models\CashierShift;
 use App\Models\Category;
@@ -186,5 +187,83 @@ it('records a receivable and only counts settled payment in the cashier drawer',
         'cashier_shift_id' => $shift->id,
         'type' => 'in',
         'amount' => 5_000,
+    ]);
+});
+
+it('converts customer points to rupiah using the store loyalty settings', function () {
+    $this->seed(ChartOfAccountSeeder::class);
+
+    $store = StoreLocation::factory()->create([
+        'settings' => [
+            'loyalty' => [
+                'enabled' => true,
+                'earn_spend_amount' => 10000,
+                'earn_points' => 1,
+                'redeem_value' => 100,
+                'redeem_min_points' => 50,
+                'redeem_max_points' => 500,
+                'redeem_max_percentage' => 50,
+                'expiry_months' => 12,
+            ],
+        ],
+    ]);
+    $warehouse = Warehouse::factory()->create(['store_location_id' => $store->id]);
+    $user = User::factory()->create(['store_id' => $store->id]);
+    $unit = Unit::factory()->create(['symbol' => 'PCS']);
+    $category = Category::factory()->create();
+    $product = Product::factory()->create([
+        'store_id' => $store->id,
+        'category_id' => $category->id,
+        'default_warehouse_id' => $warehouse->id,
+        'base_unit_id' => $unit->id,
+        'stok_saat_ini' => 10,
+        'hpp_current' => 5_000,
+    ]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'store_id' => $store->id,
+        'unit_id' => $unit->id,
+        'price_type' => 'retail',
+        'min_qty' => 1,
+        'price' => 10_000,
+        'channel' => 'both',
+        'is_active' => true,
+    ]);
+    $shift = CashierShift::factory()->create([
+        'store_id' => $store->id,
+        'user_id' => $user->id,
+        'status' => 'open',
+    ]);
+    $customer = Customer::query()->create([
+        'name' => 'Pelanggan Poin',
+        'phone' => '081234567890',
+    ]);
+    app(LoyaltyPointService::class)->earn($customer->id, 200, Sale::class, 99);
+
+    $sale = app(CheckoutPosAction::class)->execute([
+        'cashier_shift_id' => $shift->id,
+        'customer_id' => $customer->id,
+        'discount_total' => 0,
+        'tax_total' => 0,
+        'items' => [[
+            'product_id' => $product->id,
+            'unit_id' => $unit->id,
+            'qty' => 2,
+            'discount_amount' => 0,
+        ]],
+        'payments' => [
+            ['method' => 'points', 'amount' => 1, 'points_to_redeem' => 100],
+            ['method' => 'cash', 'amount' => 10_000],
+        ],
+    ], $user->id, $store->id, $warehouse->id);
+
+    expect((float) $sale->total_amount)->toBe(20_000.0)
+        ->and((float) $sale->paid_amount)->toBe(20_000.0)
+        ->and($customer->refresh()->loyalty_point_balance)->toBe(102);
+
+    $this->assertDatabaseHas('sale_payments', [
+        'sale_id' => $sale->id,
+        'method' => 'points',
+        'amount' => 10_000,
     ]);
 });

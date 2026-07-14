@@ -24,15 +24,26 @@ class StoreCheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'delivery_method' => ['required', Rule::in(['delivery', 'pickup'])],
             'address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
-            'recipient_name' => ['required_without:address_id', 'string', 'max:150'],
-            'phone' => ['required_without:address_id', 'string', 'max:30'],
-            'full_address' => ['required_without:address_id', 'string', 'max:1000'],
-            'latitude' => ['required_without:address_id', 'numeric', 'between:-90,90'],
-            'longitude' => ['required_without:address_id', 'numeric', 'between:-180,180'],
-            'payment_method' => ['required', Rule::in(['bank_transfer', 'e_wallet'])],
+            'recipient_name' => ['required', 'string', 'max:150'],
+            'phone' => ['required', 'string', 'max:30'],
+            'full_address' => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:1000'],
+            'latitude' => [
+                'nullable',
+                Rule::requiredIf(fn (): bool => $this->input('delivery_method') === 'delivery' && ! $this->filled('address_id')),
+                'numeric',
+                'between:-90,90',
+            ],
+            'longitude' => [
+                'nullable',
+                Rule::requiredIf(fn (): bool => $this->input('delivery_method') === 'delivery' && ! $this->filled('address_id')),
+                'numeric',
+                'between:-180,180',
+            ],
+            'payment_method' => ['required', Rule::in(['bank_transfer', 'e_wallet', 'qris', 'cash'])],
             'voucher_code' => ['nullable', 'string', 'max:50'],
-            'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'mimetypes:image/jpeg,image/png,application/pdf', 'max:5120'],
+            'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ];
     }
 }

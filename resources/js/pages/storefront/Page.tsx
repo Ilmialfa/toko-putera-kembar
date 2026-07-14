@@ -16,14 +16,11 @@ export default function Page({ cmsPage }: any) {
                         >
                             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                                 {section.section_type === 'text_block' && (
-                                    <div
-                                        className="prose prose-blue prose-img:rounded-xl max-w-none"
-                                        dangerouslySetInnerHTML={{
-                                            __html:
-                                                section.content_json?.content ||
-                                                '',
-                                        }}
-                                    />
+                                    <p className="max-w-3xl leading-7 whitespace-pre-line text-stone-600">
+                                        {toPlainText(
+                                            section.content_json?.content || '',
+                                        )}
+                                    </p>
                                 )}
 
                                 {section.section_type === 'hero_banner' && (
@@ -73,4 +70,11 @@ export default function Page({ cmsPage }: any) {
             </div>
         </StorefrontLayout>
     );
+}
+
+function toPlainText(value: string): string {
+    return value
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
 }

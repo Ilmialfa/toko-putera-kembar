@@ -8,8 +8,10 @@ import {
     Search,
     TicketPercent,
     Trash2,
+    Coins,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AdminLayout from '@/layouts/AdminLayout';
@@ -30,6 +32,7 @@ const currency = new Intl.NumberFormat('id-ID', {
 });
 
 export default function PromotionsIndex({ promotions, filters, summary }: any) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
     const runFilter = () =>
@@ -55,15 +58,23 @@ export default function PromotionsIndex({ promotions, filters, summary }: any) {
                             tempat.
                         </p>
                     </div>
-                    <Button
-                        asChild
-                        className="bg-lime-400 text-stone-950 hover:bg-lime-300"
-                    >
-                        <Link href="/admin/promotions/create">
-                            <Plus className="mr-2 size-4" />
-                            Buat promosi
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild>
+                            <Link href="/admin/promotions/loyalty-settings">
+                                <Coins className="mr-2 size-4" />
+                                Aturan poin
+                            </Link>
+                        </Button>
+                        <Button
+                            asChild
+                            className="bg-lime-400 text-stone-950 hover:bg-lime-300"
+                        >
+                            <Link href="/admin/promotions/create">
+                                <Plus className="mr-2 size-4" />
+                                Buat promosi
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
                     <Metric label="Campaign aktif" value={summary.active} />
@@ -227,14 +238,22 @@ export default function PromotionsIndex({ promotions, filters, summary }: any) {
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        onClick={() =>
-                                                            confirm(
-                                                                `Hapus atau arsipkan ${promo.name}?`,
-                                                            ) &&
-                                                            router.delete(
-                                                                `/admin/promotions/${promo.id}`,
-                                                            )
-                                                        }
+                                                        onClick={async () => {
+                                                            if (
+                                                                await confirm({
+                                                                    title: `Hapus promosi ${promo.name}?`,
+                                                                    description:
+                                                                        'Promosi akan diarsipkan dan tidak dapat digunakan lagi.',
+                                                                    confirmLabel:
+                                                                        'Hapus promosi',
+                                                                    destructive: true,
+                                                                })
+                                                            ) {
+                                                                router.delete(
+                                                                    `/admin/promotions/${promo.id}`,
+                                                                );
+                                                            }
+                                                        }}
                                                     >
                                                         <Trash2 className="size-4 text-red-600" />
                                                     </Button>

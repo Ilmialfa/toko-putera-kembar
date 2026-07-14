@@ -1,6 +1,8 @@
 import { createInertiaApp } from '@inertiajs/react';
+import { toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register';
 
+import { ConfirmationProvider } from '@/components/confirmation-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -12,7 +14,17 @@ const appName = import.meta.env.VITE_APP_NAME || 'Toko Grosir Putera Kembar';
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
-    registerSW({ immediate: true });
+    const updateServiceWorker = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+            toast('Versi terbaru toko sudah tersedia.', {
+                action: {
+                    label: 'Muat ulang',
+                    onClick: () => updateServiceWorker(true),
+                },
+            });
+        },
+    });
 }
 
 createInertiaApp({
@@ -40,13 +52,15 @@ createInertiaApp({
     withApp(app) {
         return (
             <TooltipProvider delayDuration={0}>
-                {app}
-                <Toaster />
+                <ConfirmationProvider>
+                    {app}
+                    <Toaster />
+                </ConfirmationProvider>
             </TooltipProvider>
         );
     },
     progress: {
-        color: '#4B5563',
+        color: '#84cc16',
     },
 });
 

@@ -2,6 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { Pencil, Plus, Ruler, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -35,6 +36,7 @@ interface UnitIndexProps {
 }
 
 export default function UnitIndex({ units, filters }: UnitIndexProps) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -90,8 +92,16 @@ export default function UnitIndex({ units, filters }: UnitIndexProps) {
             },
         });
     };
-    const removeUnit = (unit: Unit) => {
-        if (confirm(`Hapus satuan "${unit.name}"?`)) {
+    const removeUnit = async (unit: Unit) => {
+        if (
+            await confirm({
+                title: `Hapus satuan ${unit.name}?`,
+                description:
+                    'Satuan yang sudah digunakan oleh produk atau transaksi tidak dapat dipulihkan setelah dihapus.',
+                confirmLabel: 'Hapus satuan',
+                destructive: true,
+            })
+        ) {
             destroy(`/admin/master/units/${unit.id}`);
         }
     };

@@ -77,7 +77,7 @@ return new class extends Migration
             $table->index(['store_id', 'category_id', 'is_active'], 'idx_store_category_active');
 
             // Regular index instead of FULLTEXT since SQLite driver in Laravel might not support it out of the box
-            $table->index(['name', 'description_short'], 'idx_products_name_desc');
+            $table->index(['name'], 'idx_products_name_desc');
         });
     }
 

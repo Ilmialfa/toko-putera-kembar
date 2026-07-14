@@ -44,10 +44,15 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
+    pending_payment: 'bg-yellow-100 text-yellow-800',
     payment_verification: 'bg-amber-100 text-amber-800',
     confirmed: 'bg-lime-100 text-lime-800',
+    preparing: 'bg-blue-100 text-blue-800',
+    ready_for_pickup: 'bg-indigo-100 text-indigo-800',
+    out_for_delivery: 'bg-cyan-100 text-cyan-800',
     completed: 'bg-emerald-100 text-emerald-800',
     cancelled: 'bg-red-100 text-red-700',
+    refunded: 'bg-stone-100 text-stone-600',
 };
 
 export default function OrderIndex({ orders, filters, statuses }: Props) {
@@ -189,13 +194,33 @@ export default function OrderIndex({ orders, filters, statuses }: Props) {
                                 <Link
                                     href={link.url}
                                     dangerouslySetInnerHTML={{
-                                        __html: link.label,
+                                        __html: link.label
+                                            .replace('&laquo;', '‹')
+                                            .replace('&raquo;', '›')
+                                            .replace(
+                                                'pagination.previous',
+                                                '‹ Sebelumnya',
+                                            )
+                                            .replace(
+                                                'pagination.next',
+                                                'Berikutnya ›',
+                                            ),
                                     }}
                                 />
                             ) : (
                                 <span
                                     dangerouslySetInnerHTML={{
-                                        __html: link.label,
+                                        __html: link.label
+                                            .replace('&laquo;', '‹')
+                                            .replace('&raquo;', '›')
+                                            .replace(
+                                                'pagination.previous',
+                                                '‹ Sebelumnya',
+                                            )
+                                            .replace(
+                                                'pagination.next',
+                                                'Berikutnya ›',
+                                            ),
                                     }}
                                 />
                             )}

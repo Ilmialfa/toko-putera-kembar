@@ -41,12 +41,14 @@ interface Props {
     };
     categories: { id: number; name: string }[];
     cashAccounts: { id: number; name: string }[];
+    summary: { this_month_total: number; this_month_count: number };
 }
 
 export default function ExpensesIndex({
     expenses,
     categories,
     cashAccounts,
+    summary,
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,18 +85,16 @@ export default function ExpensesIndex({
         });
     };
 
-    const totalExpense = expenses.data.reduce((sum, e) => sum + e.amount, 0);
-
     return (
-        <AdminLayout title="Kas & Pengeluaran">
-            <Head title="Kas & Pengeluaran" />
+        <AdminLayout title="Pengeluaran Operasional">
+            <Head title="Pengeluaran Operasional" />
 
             <div className="space-y-6 p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-foreground">
-                            Kas & Pengeluaran
+                            Pengeluaran Operasional
                         </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Kelola semua pengeluaran operasional toko
@@ -110,18 +110,18 @@ export default function ExpensesIndex({
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-border bg-card p-5">
                         <p className="mb-1 text-sm text-muted-foreground">
-                            Total Pengeluaran (Halaman Ini)
+                            Pengeluaran Bulan Ini
                         </p>
                         <p className="text-2xl font-bold text-destructive">
-                            {formatRupiah(totalExpense)}
+                            {formatRupiah(summary.this_month_total)}
                         </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-5">
                         <p className="mb-1 text-sm text-muted-foreground">
-                            Total Transaksi
+                            Transaksi Bulan Ini
                         </p>
                         <p className="text-2xl font-bold text-foreground">
-                            {expenses.total}
+                            {summary.this_month_count}
                         </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-5">

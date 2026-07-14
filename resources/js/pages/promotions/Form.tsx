@@ -32,6 +32,102 @@ const promotionTypes: Record<string, string> = {
     cashback: 'Cashback',
     loyalty_point: 'Pengali loyalty point',
 };
+const promotionGuides: Record<
+    string,
+    {
+        description: string;
+        example: string;
+        scope: string;
+        quantity: number;
+        reward: Reward;
+    }
+> = {
+    discount_item: {
+        description: 'Potongan harga untuk produk tertentu.',
+        example: 'Contoh: diskon 10% semua Indomie.',
+        scope: 'product',
+        quantity: 1,
+        reward: {
+            reward_type: 'percent_discount',
+            value: 10,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    discount_category: {
+        description: 'Potongan harga untuk semua produk dalam satu kategori.',
+        example: 'Contoh: diskon 5% kategori minuman.',
+        scope: 'category',
+        quantity: 1,
+        reward: {
+            reward_type: 'percent_discount',
+            value: 5,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    voucher: {
+        description: 'Diskon yang baru berlaku saat kode dimasukkan.',
+        example: 'Contoh: kode HEMAT10 untuk potongan 10%.',
+        scope: 'all',
+        quantity: 1,
+        reward: {
+            reward_type: 'percent_discount',
+            value: 10,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    bundling: {
+        description: 'Potongan nominal bila pelanggan membeli jumlah tertentu.',
+        example:
+            'Contoh: beli 3 Indomie, total hemat Rp500 sehingga menjadi Rp10.000.',
+        scope: 'product',
+        quantity: 3,
+        reward: {
+            reward_type: 'fixed_discount',
+            value: 500,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    bxgy: {
+        description: 'Beli sejumlah barang, dapat barang gratis.',
+        example: 'Contoh: beli 2, gratis 1 produk yang sama.',
+        scope: 'product',
+        quantity: 2,
+        reward: {
+            reward_type: 'free_product',
+            value: 0,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    cashback: {
+        description: 'Saldo cashback setelah transaksi berhasil.',
+        example: 'Contoh: cashback Rp5.000 untuk pembelian minimal Rp100.000.',
+        scope: 'all',
+        quantity: 1,
+        reward: {
+            reward_type: 'cashback',
+            value: 5000,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+    loyalty_point: {
+        description: 'Melipatgandakan poin pelanggan.',
+        example: 'Contoh: poin 2x pada akhir pekan.',
+        scope: 'all',
+        quantity: 1,
+        reward: {
+            reward_type: 'point_multiplier',
+            value: 2,
+            free_product_id: '',
+            free_product_qty: 1,
+        },
+    },
+};
 
 export default function PromotionForm({
     promotion,
@@ -54,6 +150,11 @@ export default function PromotionForm({
         store_id: store.id,
         name: promotion?.name ?? '',
         description: promotion?.description ?? '',
+        storefront_visible: promotion?.storefront_visible ?? true,
+        storefront_title: promotion?.storefront_title ?? '',
+        storefront_summary: promotion?.storefront_summary ?? '',
+        storefront_badge: promotion?.storefront_badge ?? 'Promo pilihan',
+        storefront_image: null as File | null,
         type: promotion?.type ?? 'discount_item',
         status: promotion?.status ?? 'active',
         start_date: promotion?.start_date?.slice(0, 16) ?? '',
@@ -102,6 +203,7 @@ export default function PromotionForm({
             isEditing
                 ? `/admin/promotions/${promotion?.id}`
                 : '/admin/promotions',
+            { forceFormData: true },
         );
     };
     const scopeOptions =
@@ -113,20 +215,27 @@ export default function PromotionForm({
                 ? brands
                 : [];
     const setType = (type: string) => {
-        const scope =
-            type === 'discount_category'
-                ? 'category'
-                : ['bundling', 'bxgy', 'discount_item'].includes(type)
-                  ? 'product'
-                  : form.data.applicable_scope;
+        const guide = promotionGuides[type];
+        const scope = guide.scope;
         form.setData((data) => ({
             ...data,
             type,
             applicable_scope: scope,
-            conditions: scope === 'all' ? [] : data.conditions,
+            conditions:
+                scope === 'all'
+                    ? []
+                    : [
+                          {
+                              conditionable_type: scope,
+                              conditionable_id: '',
+                              min_qty: guide.quantity,
+                          },
+                      ],
+            rewards: [guide.reward],
         }));
     };
     const error = (key: string) => (form.errors as Record<string, string>)[key];
+    const guide = promotionGuides[form.data.type];
 
     return (
         <AdminLayout title={isEditing ? 'Edit Promosi' : 'Promosi Baru'}>
@@ -137,7 +246,7 @@ export default function PromotionForm({
                 <header className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 md:flex-row md:items-center">
                     <div>
                         <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
-                            Campaign builder
+                            Promosi
                         </p>
                         <h2 className="mt-1 text-2xl font-bold">
                             {isEditing
@@ -145,15 +254,15 @@ export default function PromotionForm({
                                 : 'Buat promosi baru'}
                         </h2>
                         <p className="mt-1 text-sm text-stone-400">
-                            Satu engine untuk POS dan website, lengkap dengan
-                            limit dan stacking.
+                            Pilih jenis promo, lalu isi langkah yang
+                            ditampilkan.
                         </p>
                     </div>
                     <div className="flex gap-3">
                         <Button
                             type="button"
                             variant="outline"
-                            className="border-stone-700 bg-transparent text-white"
+                            className="border-stone-700 bg-transparent text-stone-700"
                             asChild
                         >
                             <Link href="/admin/promotions">Batal</Link>
@@ -163,33 +272,16 @@ export default function PromotionForm({
                             className="bg-lime-400 text-stone-950 hover:bg-lime-300"
                         >
                             <Sparkles className="mr-2 size-4" />
-                            Simpan campaign
+                            Simpan promosi
                         </Button>
                     </div>
                 </header>
                 <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
                     <section className="space-y-5 rounded-2xl border bg-white p-6">
                         <Title
-                            title="Identitas campaign"
-                            description="Nama, tipe, periode, dan target channel."
+                            title="1. Pilih jenis promosi"
+                            description="Sistem akan menyesuaikan pengaturan yang perlu diisi."
                         />
-                        <Field label="Nama promosi" error={error('name')}>
-                            <Input
-                                value={form.data.name}
-                                onChange={(e) =>
-                                    form.setData('name', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Deskripsi internal">
-                            <Textarea
-                                rows={3}
-                                value={form.data.description}
-                                onChange={(e) =>
-                                    form.setData('description', e.target.value)
-                                }
-                            />
-                        </Field>
                         <div className="grid gap-4 md:grid-cols-2">
                             <Field label="Tipe promosi">
                                 <select
@@ -206,7 +298,7 @@ export default function PromotionForm({
                                     )}
                                 </select>
                             </Field>
-                            <Field label="Status">
+                            <Field label="Status promosi">
                                 <select
                                     className={selectClass}
                                     value={form.data.status}
@@ -222,7 +314,7 @@ export default function PromotionForm({
                                     <option value="archived">Diarsipkan</option>
                                 </select>
                             </Field>
-                            <Field label="Mulai">
+                            <Field label="Mulai berlaku">
                                 <Input
                                     type="datetime-local"
                                     value={form.data.start_date}
@@ -234,7 +326,7 @@ export default function PromotionForm({
                                     }
                                 />
                             </Field>
-                            <Field label="Selesai">
+                            <Field label="Berakhir pada">
                                 <Input
                                     type="datetime-local"
                                     value={form.data.end_date}
@@ -276,112 +368,260 @@ export default function PromotionForm({
                                 </select>
                             </Field>
                         </div>
-                    </section>
-                    <section className="space-y-5 rounded-2xl border bg-white p-6">
-                        <Title
-                            title="Aturan penggunaan"
-                            description="Kontrol budget dan konflik antar-campaign."
-                        />
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <Field label="Prioritas">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={form.data.priority}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'priority',
-                                            Number(e.target.value),
-                                        )
-                                    }
-                                />
-                            </Field>
-                            <Field label="Grup eksklusif">
-                                <Input
-                                    value={form.data.exclusive_group}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'exclusive_group',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="contoh: ramadan"
-                                />
-                            </Field>
-                            <Field label="Min. belanja">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={form.data.min_purchase_amount}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'min_purchase_amount',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </Field>
-                            <Field label="Maks. diskon">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={form.data.max_discount_amount}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'max_discount_amount',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </Field>
-                            <Field label="Limit total">
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    value={form.data.usage_limit_total}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'usage_limit_total',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </Field>
-                            <Field label="Limit per pelanggan">
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    value={form.data.usage_limit_per_customer}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'usage_limit_per_customer',
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </Field>
+                        <div className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm text-stone-700">
+                            <p className="font-bold text-stone-900">
+                                {promotionTypes[form.data.type]}
+                            </p>
+                            <p className="mt-1">{guide.description}</p>
+                            <p className="mt-2 text-xs font-semibold text-lime-800">
+                                {guide.example}
+                            </p>
                         </div>
-                        <label className="flex items-center justify-between rounded-xl border p-3 text-sm font-medium">
-                            <span>Boleh digabung dengan promo lain</span>
-                            <input
-                                type="checkbox"
-                                className="size-4 accent-lime-600"
-                                checked={form.data.is_stackable}
+                        <Field label="Nama promosi" error={error('name')}>
+                            <Input
+                                value={form.data.name}
                                 onChange={(e) =>
-                                    form.setData(
-                                        'is_stackable',
-                                        e.target.checked,
-                                    )
+                                    form.setData('name', e.target.value)
                                 }
+                                placeholder="Contoh: Paket Hemat Indomie"
                             />
-                        </label>
+                        </Field>
+                        <Field label="Catatan internal (opsional)">
+                            <Textarea
+                                rows={2}
+                                value={form.data.description}
+                                onChange={(e) =>
+                                    form.setData('description', e.target.value)
+                                }
+                                placeholder="Contoh: berlaku untuk promo akhir pekan"
+                            />
+                        </Field>
                     </section>
+                    <details className="group rounded-2xl border border-stone-200 bg-white p-6">
+                        <summary className="cursor-pointer text-lg font-bold text-stone-950">
+                            Pengaturan lanjutan (opsional)
+                        </summary>
+                        <p className="mt-1 text-sm text-stone-500">
+                            Biarkan kosong bila tidak ada batas pemakaian atau
+                            aturan khusus.
+                        </p>
+                        <div className="mt-5 space-y-5">
+                            <Title
+                                title="Aturan penggunaan"
+                                description="Batas penggunaan dan kombinasi promo."
+                            />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <Field label="Prioritas">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={form.data.priority}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'priority',
+                                                Number(e.target.value),
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Grup eksklusif">
+                                    <Input
+                                        value={form.data.exclusive_group}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'exclusive_group',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="contoh: ramadan"
+                                    />
+                                </Field>
+                                <Field label="Min. belanja">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={form.data.min_purchase_amount}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'min_purchase_amount',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Maks. diskon">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={form.data.max_discount_amount}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'max_discount_amount',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Limit total">
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={form.data.usage_limit_total}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'usage_limit_total',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Limit per pelanggan">
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={
+                                            form.data.usage_limit_per_customer
+                                        }
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'usage_limit_per_customer',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                            </div>
+                            <label className="flex items-center justify-between rounded-xl border p-3 text-sm font-medium">
+                                <span>Boleh digabung dengan promo lain</span>
+                                <input
+                                    type="checkbox"
+                                    className="size-4 accent-lime-600"
+                                    checked={form.data.is_stackable}
+                                    onChange={(e) =>
+                                        form.setData(
+                                            'is_stackable',
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                            </label>
+                        </div>
+                    </details>
                 </div>
+                <section className="rounded-2xl border border-stone-200 bg-white p-6">
+                    <Title
+                        title="Tampilan di website pelanggan"
+                        description="Atur informasi yang terlihat pada Beranda dan halaman Promo. Pengaturan diskon di bawah tetap diproses sistem secara terpisah."
+                    />
+                    <label className="mt-5 flex items-center justify-between rounded-xl border border-lime-200 bg-white p-4 text-sm font-semibold text-stone-800">
+                        <span>
+                            <span className="block">
+                                Tampilkan promo di website
+                            </span>
+                            <span className="mt-1 block text-xs font-normal text-stone-500">
+                                Hanya promo aktif, berperiode, dan untuk channel
+                                Online yang akan tampil ke pelanggan.
+                            </span>
+                        </span>
+                        <input
+                            type="checkbox"
+                            className="size-4 accent-lime-600"
+                            checked={form.data.storefront_visible}
+                            onChange={(event) =>
+                                form.setData(
+                                    'storefront_visible',
+                                    event.target.checked,
+                                )
+                            }
+                        />
+                    </label>
+                    {form.data.storefront_visible && (
+                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                            <Field
+                                label="Judul di website"
+                                hint="Kosongkan untuk memakai nama promosi."
+                            >
+                                <Input
+                                    value={form.data.storefront_title}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'storefront_title',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="Contoh: Paket Hemat Mingguan"
+                                />
+                            </Field>
+                            <Field
+                                label="Label kecil"
+                                hint="Contoh: Hemat minggu ini"
+                            >
+                                <Input
+                                    value={form.data.storefront_badge}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'storefront_badge',
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="Promo pilihan"
+                                />
+                            </Field>
+                            <div className="md:col-span-2">
+                                <Field
+                                    label="Ringkasan untuk pelanggan"
+                                    hint="Jelaskan keuntungan promo dengan bahasa yang mudah dipahami."
+                                >
+                                    <Textarea
+                                        rows={3}
+                                        value={form.data.storefront_summary}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'storefront_summary',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Contoh: Belanja lebih hemat untuk stok warung dan kebutuhan rumah."
+                                    />
+                                </Field>
+                            </div>
+                            <div className="md:col-span-2">
+                                <Field
+                                    label="Gambar promo"
+                                    hint="Opsional. JPG, PNG, atau WebP maksimal 5 MB."
+                                >
+                                    <Input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp"
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'storefront_image',
+                                                event.target.files?.[0] ?? null,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                {promotion?.storefront_image_path &&
+                                    !form.data.storefront_image && (
+                                        <img
+                                            src={`/storage/${promotion.storefront_image_path}`}
+                                            alt="Gambar promo saat ini"
+                                            className="mt-3 h-36 w-full rounded-xl border border-stone-200 object-cover sm:max-w-sm"
+                                        />
+                                    )}
+                            </div>
+                        </div>
+                    )}
+                </section>
                 <section className="rounded-2xl border bg-white p-6">
                     <div className="flex flex-col justify-between gap-4 md:flex-row">
                         <Title
-                            title="Produk yang memenuhi syarat"
-                            description="Pilih scope dan qty minimum untuk setiap kondisi."
+                            title="2. Barang dan jumlah yang dibeli"
+                            description={
+                                guide.scope === 'all'
+                                    ? 'Promo berlaku untuk seluruh belanja. Tidak perlu memilih produk.'
+                                    : 'Pilih barang yang mengikuti promo dan jumlah minimumnya.'
+                            }
                         />
                         <div className="flex gap-2">
                             <select
@@ -420,79 +660,86 @@ export default function PromotionForm({
                             )}
                         </div>
                     </div>
-                    <div className="mt-5 space-y-3">
-                        {form.data.conditions.map((condition, index) => (
-                            <div
-                                key={index}
-                                className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_180px_auto]"
-                            >
-                                <select
-                                    className={selectClass}
-                                    value={condition.conditionable_id}
-                                    onChange={(e) => {
-                                        const rows = [...form.data.conditions];
-                                        rows[index] = {
-                                            ...condition,
-                                            conditionable_type:
-                                                form.data.applicable_scope,
-                                            conditionable_id: e.target.value,
-                                        };
-                                        form.setData('conditions', rows);
-                                    }}
+                    {form.data.applicable_scope !== 'all' && (
+                        <div className="mt-5 space-y-3">
+                            {form.data.conditions.map((condition, index) => (
+                                <div
+                                    key={index}
+                                    className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_180px_auto]"
                                 >
-                                    <option value="">Pilih target</option>
-                                    {scopeOptions.map((option) => (
-                                        <option
-                                            key={option.id}
-                                            value={option.id}
-                                        >
-                                            {option.name}
-                                            {option.sku
-                                                ? ` — ${option.sku}`
-                                                : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                                <Input
-                                    type="number"
-                                    min="0.001"
-                                    step="0.001"
-                                    value={condition.min_qty}
-                                    onChange={(e) => {
-                                        const rows = [...form.data.conditions];
-                                        rows[index] = {
-                                            ...condition,
-                                            min_qty: e.target.value,
-                                        };
-                                        form.setData('conditions', rows);
-                                    }}
-                                    placeholder="Qty minimum"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                        form.setData(
-                                            'conditions',
-                                            form.data.conditions.filter(
-                                                (_, current) =>
-                                                    current !== index,
-                                            ),
-                                        )
-                                    }
-                                >
-                                    <Trash2 className="size-4 text-red-600" />
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
+                                    <select
+                                        className={selectClass}
+                                        value={condition.conditionable_id}
+                                        onChange={(e) => {
+                                            const rows = [
+                                                ...form.data.conditions,
+                                            ];
+                                            rows[index] = {
+                                                ...condition,
+                                                conditionable_type:
+                                                    form.data.applicable_scope,
+                                                conditionable_id:
+                                                    e.target.value,
+                                            };
+                                            form.setData('conditions', rows);
+                                        }}
+                                    >
+                                        <option value="">Pilih target</option>
+                                        {scopeOptions.map((option) => (
+                                            <option
+                                                key={option.id}
+                                                value={option.id}
+                                            >
+                                                {option.name}
+                                                {option.sku
+                                                    ? ` — ${option.sku}`
+                                                    : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <Input
+                                        type="number"
+                                        min="0.001"
+                                        step="0.001"
+                                        value={condition.min_qty}
+                                        onChange={(e) => {
+                                            const rows = [
+                                                ...form.data.conditions,
+                                            ];
+                                            rows[index] = {
+                                                ...condition,
+                                                min_qty: e.target.value,
+                                            };
+                                            form.setData('conditions', rows);
+                                        }}
+                                        placeholder="Jumlah minimal"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                            form.setData(
+                                                'conditions',
+                                                form.data.conditions.filter(
+                                                    (_, current) =>
+                                                        current !== index,
+                                                ),
+                                            )
+                                        }
+                                    >
+                                        <Trash2 className="size-4 text-red-600" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
                 <section className="rounded-2xl border bg-white p-6">
                     <div className="flex justify-between gap-4">
                         <Title
-                            title="Benefit pelanggan"
-                            description="Diskon, produk gratis, cashback, atau pengali poin."
+                            title="3. Keuntungan pelanggan"
+                            description="Isi nilai sesuai jenis promosi. Sistem menghitung totalnya otomatis."
                         />
                         <Button
                             type="button"
@@ -557,7 +804,15 @@ export default function PromotionForm({
                                         };
                                         form.setData('rewards', rows);
                                     }}
-                                    placeholder="Nilai"
+                                    placeholder={
+                                        reward.reward_type ===
+                                        'percent_discount'
+                                            ? 'Persentase, contoh 10'
+                                            : reward.reward_type ===
+                                                'point_multiplier'
+                                              ? 'Pengali, contoh 2'
+                                              : 'Nominal rupiah'
+                                    }
                                 />
                                 <select
                                     className={selectClass}
@@ -764,15 +1019,18 @@ function Title({ title, description }: { title: string; description: string }) {
 function Field({
     label,
     error,
+    hint,
     children,
 }: {
     label: string;
     error?: string;
+    hint?: string;
     children: React.ReactNode;
 }) {
     return (
         <div className="space-y-1.5">
             <Label>{label}</Label>
+            {hint && <p className="text-xs text-stone-500">{hint}</p>}
             {children}
             {error && <p className="text-xs text-red-600">{error}</p>}
         </div>

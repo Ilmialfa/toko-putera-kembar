@@ -26,7 +26,9 @@ use App\Domain\Inventory\Controllers\InventoryOperationController;
 use App\Domain\Inventory\Controllers\InventoryReportController;
 use App\Domain\Inventory\Controllers\StockInController;
 use App\Domain\Inventory\Controllers\SupplierController;
+use App\Domain\Inventory\Controllers\SupplierDebtController;
 use App\Domain\Inventory\Controllers\WarehouseController;
+use App\Domain\Promotion\Controllers\LoyaltySettingsController;
 use App\Domain\Promotion\Controllers\PromotionController;
 use App\Domain\Promotion\Controllers\VoucherValidationController;
 use App\Domain\Sales\Controllers\CashierShiftController;
@@ -35,6 +37,7 @@ use App\Domain\Sales\Controllers\ParkBillController;
 use App\Domain\Sales\Controllers\PosController;
 use App\Domain\Sales\Controllers\PosProductController;
 use App\Domain\Sales\Controllers\SaleReturnController;
+use App\Domain\Sales\Controllers\SalesTransactionController;
 use App\Domain\Storefront\Controllers\AdminOrderController;
 use App\Domain\Storefront\Controllers\CartController;
 use App\Domain\Storefront\Controllers\CustomerAuthController;
@@ -45,7 +48,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.index');
 Route::get('/home', [StorefrontController::class, 'index'])->name('home'); // Required by Fortify post-auth redirect
-Route::get('/about', [StorefrontController::class, 'page'])->name('storefront.about');
+Route::get('/katalog', [StorefrontController::class, 'catalog'])->name('storefront.catalog');
+Route::get('/promo', [StorefrontController::class, 'promotions'])->name('storefront.promo');
+Route::get('/tentang', [StorefrontController::class, 'companyProfile'])->name('storefront.about');
+Route::get('/kontak', [StorefrontController::class, 'companyProfile'])->name('storefront.contact');
+Route::redirect('/about', '/tentang');
 Route::get('/product/{slug}', [StorefrontController::class, 'show'])->name('storefront.show');
 Route::post('/price-quote', ProductQuoteController::class)->middleware('throttle:60,1')->name('products.quote');
 
@@ -62,6 +69,12 @@ Route::middleware('guest:customer')->group(function () {
 
 Route::middleware('auth:customer')->group(function () {
     Route::get('/akun', [CustomerAuthController::class, 'account'])->name('customer.account');
+    Route::put('/akun/profil', [CustomerAuthController::class, 'updateProfile'])->name('customer.profile.update');
+    Route::post('/akun/alamat', [CustomerAuthController::class, 'storeAddress'])->name('customer.addresses.store');
+    Route::put('/akun/alamat/{address}', [CustomerAuthController::class, 'updateAddress'])->name('customer.addresses.update');
+    Route::put('/akun/alamat/{address}/utama', [CustomerAuthController::class, 'makeDefaultAddress'])->name('customer.addresses.default');
+    Route::delete('/akun/alamat/{address}', [CustomerAuthController::class, 'destroyAddress'])->name('customer.addresses.destroy');
+    Route::get('/akun/pesanan/{order}', [CustomerAuthController::class, 'showOrder'])->name('customer.orders.show');
     Route::post('/akun/keluar', [CustomerAuthController::class, 'logout'])->name('customer.logout');
 });
 
@@ -73,7 +86,11 @@ Route::delete('/cart/{cartItem}', [CartController::class, 'destroy'])->name('car
 
 // Checkout
 Route::get('/checkout', [App\Domain\Storefront\Controllers\CheckoutController::class, 'index'])->name('checkout.index');
+Route::post('/checkout/voucher-preview', [App\Domain\Storefront\Controllers\CheckoutController::class, 'previewVoucher'])
+    ->middleware('throttle:20,1')
+    ->name('checkout.voucher-preview');
 Route::post('/checkout', [App\Domain\Storefront\Controllers\CheckoutController::class, 'store'])->name('checkout.store');
+Route::get('/checkout/{order}/success', [App\Domain\Storefront\Controllers\CheckoutController::class, 'success'])->name('checkout.success');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/attendance', [AttendanceController::class, 'create'])->name('attendance.portal');
@@ -83,6 +100,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('sales/transactions', [SalesTransactionController::class, 'index'])
+            ->name('sales.transactions.index');
+        Route::get('sales/transactions/{sale}', [SalesTransactionController::class, 'show'])
+            ->name('sales.transactions.show');
 
         Route::prefix('access')->name('access.')->group(function () {
             Route::get('users', [UserManagementController::class, 'index'])->middleware('permission:users.view')->name('users.index');
@@ -133,6 +155,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::resource('suppliers', SupplierController::class)->except(['create', 'edit', 'show']);
             Route::resource('warehouses', WarehouseController::class)->except(['create', 'edit', 'show']);
             Route::resource('stock-ins', StockInController::class)->only(['index', 'create', 'store', 'show']);
+
+            Route::get('supplier-debts', [SupplierDebtController::class, 'index'])->name('supplier-debts.index');
+            Route::post('supplier-debts/{stockIn}/pay', [SupplierDebtController::class, 'pay'])->name('supplier-debts.pay');
+
             Route::get('reports', [InventoryReportController::class, 'index'])->name('reports.index');
             Route::get('operations', [InventoryOperationController::class, 'index'])->name('operations.index');
             Route::post('purchase-orders', [InventoryOperationController::class, 'storePurchaseOrder'])->name('purchase-orders.store');
@@ -176,6 +202,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::prefix('promotions')->name('promotions.')->middleware('permission:promotions.view')->group(function () {
             Route::get('/', [PromotionController::class, 'index'])->name('index');
             Route::middleware('permission:promotions.manage')->group(function () {
+                Route::get('loyalty-settings', [LoyaltySettingsController::class, 'edit'])->name('loyalty-settings.edit');
+                Route::put('loyalty-settings', [LoyaltySettingsController::class, 'update'])->name('loyalty-settings.update');
                 Route::get('create', [PromotionController::class, 'create'])->name('create');
                 Route::post('/', [PromotionController::class, 'store'])->name('store');
                 Route::get('{promotion}/edit', [PromotionController::class, 'edit'])->name('edit');
@@ -189,7 +217,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         // CMS
-        Route::prefix('cms')->name('cms.')->middleware('permission:manage settings')->group(function () {
+        Route::prefix('cms')->name('cms.')->middleware('permission:cms.manage')->group(function () {
             Route::resource('pages', CmsPageController::class)->except(['show']);
             Route::resource('blogs', BlogPostController::class)->except(['show']);
             Route::resource('faqs', FaqController::class)->except(['show']);

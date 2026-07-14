@@ -23,7 +23,7 @@ class RoleManagementController extends Controller
 
         return Inertia::render('admin/access/Roles', [
             'roles' => Role::query()->with('permissions:id,name')->withCount('users')->orderBy('name')->get(),
-            'permissionGroups' => $permissions->groupBy(fn (Permission $permission): string => str($permission->name)->before('.')->before(' ')->toString()),
+            'permissionGroups' => $permissions->groupBy(fn (Permission $permission): string => $this->permissionGroupKey($permission->name)),
             'systemRoles' => self::SYSTEM_ROLES,
         ]);
     }
@@ -70,5 +70,12 @@ class RoleManagementController extends Controller
             'permissions' => ['required', 'array', 'min:1'],
             'permissions.*' => ['required', 'string', 'exists:permissions,name'],
         ]);
+    }
+
+    private function permissionGroupKey(string $permissionName): string
+    {
+        return str($permissionName)->contains('.')
+            ? str($permissionName)->before('.')->toString()
+            : 'legacy';
     }
 }

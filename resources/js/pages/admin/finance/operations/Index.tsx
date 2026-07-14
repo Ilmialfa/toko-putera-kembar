@@ -30,13 +30,14 @@ export default function FinanceOperations({
     accounts,
     movements,
     payables,
-    receivables,
     journals,
+    counterAccounts,
 }: any) {
     const [movementOpen, setMovementOpen] = useState(false);
     const [payable, setPayable] = useState<any>(null);
     const movement = useForm({
         cash_account_id: accounts[0]?.id ?? '',
+        counter_account_id: counterAccounts[0]?.id ?? '',
         type: 'in',
         amount: '',
         reason: '',
@@ -76,14 +77,15 @@ export default function FinanceOperations({
                 <header className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 text-stone-800 md:flex-row md:items-center">
                     <div>
                         <p className="text-xs font-bold tracking-[0.18em] text-lime-400 uppercase">
-                            Finance workspace
+                            Ruang kerja keuangan
                         </p>
                         <h2 className="mt-1 text-2xl font-bold">
-                            Kas, bank, hutang & jurnal
+                            Kas, bank, dan hutang supplier
                         </h2>
                         <p className="mt-1 text-sm text-stone-400">
-                            Pembayaran hutang otomatis membentuk mutasi kas dan
-                            jurnal double-entry.
+                            Gunakan halaman ini untuk memantau saldo dan
+                            melunasi hutang. Piutang pelanggan dikelola di
+                            halaman tersendiri.
                         </p>
                     </div>
                     <Button
@@ -170,32 +172,12 @@ export default function FinanceOperations({
                             </tbody>
                         </table>
                     </Section>
-                    <Section title="Piutang pelanggan">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-xs text-stone-500 uppercase">
-                                    <th className="py-3">Pelanggan</th>
-                                    <th>Sisa</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {receivables.map((item: any) => (
-                                    <tr key={item.id}>
-                                        <td className="py-3 font-semibold">
-                                            {item.customer?.name}
-                                        </td>
-                                        <td>
-                                            {money.format(
-                                                Number(item.amount) -
-                                                    Number(item.paid_amount),
-                                            )}
-                                        </td>
-                                        <td>{item.status}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <Section title="Ringkasan hutang">
+                        <p className="text-sm leading-6 text-stone-500">
+                            Hutang terbentuk otomatis dari penerimaan barang
+                            kredit. Catat pembayaran dari daftar di sebelah kiri
+                            agar kas dan jurnal tetap tersambung.
+                        </p>
                     </Section>
                 </div>
                 <div className="grid gap-6 xl:grid-cols-2">
@@ -239,7 +221,7 @@ export default function FinanceOperations({
                                     className="rounded-xl border bg-stone-50 p-3"
                                 >
                                     <summary className="cursor-pointer text-sm font-semibold">
-                                        {journal.description} ·{' '}
+                                        {journal.description} -{' '}
                                         {journal.entry_date}
                                     </summary>
                                     <div className="mt-3 space-y-1 text-xs">
@@ -253,7 +235,7 @@ export default function FinanceOperations({
                                                         line.chart_of_account
                                                             ?.code
                                                     }{' '}
-                                                    —{' '}
+                                                    -{' '}
                                                     {
                                                         line.chart_of_account
                                                             ?.name
@@ -293,6 +275,17 @@ export default function FinanceOperations({
                                 }
                             />
                             <Select
+                                label="Akun lawan"
+                                value={movement.data.counter_account_id}
+                                options={counterAccounts}
+                                onChange={(value) =>
+                                    movement.setData(
+                                        'counter_account_id',
+                                        value,
+                                    )
+                                }
+                            />
+                            <Select
                                 label="Jenis"
                                 value={movement.data.type}
                                 options={[
@@ -319,6 +312,11 @@ export default function FinanceOperations({
                                 }
                                 placeholder="Keterangan"
                             />
+                            <p className="text-xs leading-5 text-stone-500">
+                                Untuk pengeluaran operasional gunakan halaman
+                                Pengeluaran; mutasi ini dipakai untuk modal,
+                                prive, atau penyesuaian yang membutuhkan jurnal.
+                            </p>
                         </div>
                         <DialogFooter>
                             <Button disabled={movement.processing}>

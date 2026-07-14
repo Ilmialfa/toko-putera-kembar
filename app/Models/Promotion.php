@@ -20,6 +20,7 @@ class Promotion extends Model
             'end_date' => 'datetime',
             'is_active' => 'boolean',
             'is_stackable' => 'boolean',
+            'storefront_visible' => 'boolean',
             'min_purchase_amount' => 'decimal:2',
             'max_discount_amount' => 'decimal:2',
         ];

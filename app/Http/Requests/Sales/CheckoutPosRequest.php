@@ -42,6 +42,7 @@ class CheckoutPosRequest extends FormRequest
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.method' => ['required', Rule::in(['cash', 'qris', 'bank_transfer', 'e_wallet', 'debit_card', 'credit_card', 'piutang', 'points'])],
             'payments.*.amount' => ['required', 'numeric', 'gt:0'],
+            'payments.*.points_to_redeem' => ['nullable', 'integer', 'min:1'],
             'payments.*.reference_number' => ['nullable', 'string', 'max:100'],
             'parked_sale_id' => ['nullable', 'integer', 'exists:sales,id'],
             'receivable_due_date' => ['nullable', 'date', 'after_or_equal:today'],

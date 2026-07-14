@@ -180,6 +180,13 @@ export default function Cart({ cart }: any) {
                                         Berdasarkan jarak
                                     </span>
                                 </div>
+                                <div className="mt-2 rounded-lg bg-lime-50 p-3 text-xs text-lime-800">
+                                    <strong>Promo Pengiriman:</strong> Gratis
+                                    ongkir maksimal jarak 3 km dengan{' '}
+                                    <strong>minimal belanja Rp150.000</strong>.
+                                    Jika kurang dari itu, silakan pilih opsi
+                                    Ambil di Toko.
+                                </div>
                             </div>
                             <div className="mt-6 flex justify-between border-t border-stone-200 pt-5">
                                 <span className="font-semibold">

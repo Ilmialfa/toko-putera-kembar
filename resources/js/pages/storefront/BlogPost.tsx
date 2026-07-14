@@ -8,16 +8,16 @@ export default function BlogPost({ post }: any) {
         <StorefrontLayout>
             <Head title={post.title} />
 
-            <div className="bg-gray-50 py-12">
+            <div className="bg-white py-10 sm:py-14">
                 <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
                     <Link
                         href={blogIndex.url()}
-                        className="mb-8 inline-flex items-center text-blue-600 hover:underline"
+                        className="mb-8 inline-flex items-center text-sm font-bold text-lime-700 hover:underline"
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Blog
                     </Link>
 
-                    <article className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+                    <article className="overflow-hidden rounded-3xl border border-stone-200 bg-white">
                         {post.cover_image_path && (
                             <img
                                 src={`/storage/${post.cover_image_path}`}
@@ -26,12 +26,15 @@ export default function BlogPost({ post }: any) {
                             />
                         )}
 
-                        <div className="p-8 md:p-12">
+                        <div className="p-6 sm:p-8 md:p-12">
                             <header className="mb-8">
-                                <h1 className="mb-4 text-3xl font-bold text-gray-900 md:text-5xl">
+                                <p className="mb-3 text-xs font-bold tracking-[0.14em] text-lime-700 uppercase">
+                                    Informasi Putera Kembar
+                                </p>
+                                <h1 className="mb-4 text-3xl font-black tracking-tight text-stone-950 md:text-5xl">
                                     {post.title}
                                 </h1>
-                                <div className="flex items-center text-sm text-gray-500">
+                                <div className="flex flex-wrap items-center gap-x-2 text-sm text-stone-500">
                                     <span>
                                         Oleh {post.author?.name || 'Admin'}
                                     </span>
@@ -48,16 +51,23 @@ export default function BlogPost({ post }: any) {
                                 </div>
                             </header>
 
-                            <div
-                                className="prose prose-blue prose-img:rounded-xl prose-img:w-full max-w-none"
-                                dangerouslySetInnerHTML={{
-                                    __html: post.content,
-                                }}
-                            />
+                            <p className="max-w-none leading-8 whitespace-pre-line text-stone-700">
+                                {toReadableText(post.content)}
+                            </p>
                         </div>
                     </article>
                 </div>
             </div>
         </StorefrontLayout>
     );
+}
+
+function toReadableText(value: string): string {
+    return value
+        .replace(/<br\s*\/?>(\n)?/gi, '\n')
+        .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, '\n\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }

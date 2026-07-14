@@ -2,6 +2,7 @@ import { Link, router, useForm } from '@inertiajs/react';
 import { KeyRound, Plus, Search, ShieldOff, UserCog } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -43,6 +44,7 @@ export default function Users({
     stores: Option[];
     filters: { search?: string };
 }) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<UserRow | null>(null);
@@ -236,14 +238,22 @@ export default function Users({
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() =>
-                                                        confirm(
-                                                            `Cabut semua sesi ${user.name}?`,
-                                                        ) &&
-                                                        router.delete(
-                                                            `/admin/access/users/${user.id}/sessions`,
-                                                        )
-                                                    }
+                                                    onClick={async () => {
+                                                        if (
+                                                            await confirm({
+                                                                title: `Cabut semua sesi ${user.name}?`,
+                                                                description:
+                                                                    'Pengguna harus masuk kembali pada semua perangkatnya.',
+                                                                confirmLabel:
+                                                                    'Cabut sesi',
+                                                                destructive: true,
+                                                            })
+                                                        ) {
+                                                            router.delete(
+                                                                `/admin/access/users/${user.id}/sessions`,
+                                                            );
+                                                        }
+                                                    }}
                                                 >
                                                     <ShieldOff className="mr-1.5 size-4" />
                                                     Sesi

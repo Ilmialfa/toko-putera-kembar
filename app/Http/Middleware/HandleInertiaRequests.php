@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Cart;
+use App\Models\StoreLocation;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,7 +37,7 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $user = $request->user();
+        $user = $request->user('web');
         $userPayload = null;
         if ($user !== null) {
             $user->loadMissing('roles:id,name');
@@ -48,8 +49,9 @@ class HandleInertiaRequests extends Middleware
         }
 
         $cartCount = 0;
+        $customer = auth('customer')->user();
         if ($request->isMethod('GET')) {
-            if (auth('customer')->check()) {
+            if ($customer !== null) {
                 $cartCount = (int) (Cart::query()
                     ->where('customer_id', auth('customer')->id())
                     ->withCount('items')
@@ -67,9 +69,14 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $userPayload,
-                'customer' => auth('customer')->user(),
+                'customer' => $customer?->only(['id', 'name', 'loyalty_point_balance']),
             ],
             'cart_count' => $cartCount,
+            'storefront_delivery' => fn (): ?array => StoreLocation::query()
+                ->where('is_main', true)
+                ->where('is_active', true)
+                ->first(['name', 'latitude', 'longitude', 'delivery_radius_km'])
+                ?->only(['name', 'latitude', 'longitude', 'delivery_radius_km']),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => $request->session()->get('success'),

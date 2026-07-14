@@ -31,7 +31,7 @@ export default function ProductDetail({ product }: any) {
             (unit: any) => unit.id === product.display_quote?.unit_id,
         ) ?? product.sales_units[0];
     const [unitId, setUnitId] = useState<number>(defaultUnit?.id);
-    const [quantity, setQuantity] = useState(1);
+    const [quantityInput, setQuantityInput] = useState('1');
     const [quote, setQuote] = useState<Quote | null>(
         defaultUnit?.quote ?? product.display_quote,
     );
@@ -50,6 +50,7 @@ export default function ProductDetail({ product }: any) {
         quantity: 1,
         channel: 'online',
     });
+    const quantity = Number(quantityInput) || 0;
 
     useEffect(() => {
         const timeout = window.setTimeout(async () => {
@@ -73,6 +74,19 @@ export default function ProductDetail({ product }: any) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [unitId, quantity, product.id]);
 
+    const updateQuantity = (value: string) => {
+        const normalizedValue = value
+            .replace(',', '.')
+            .replace(/[^\d.]/g, '')
+            .replace(/(\..*)\./g, '$1');
+
+        setQuantityInput(normalizedValue);
+    };
+
+    const normalizeQuantity = () => {
+        setQuantityInput(String(Math.max(0.001, quantity || 1)));
+    };
+
     const addToCart = () =>
         router.post(
             '/cart',
@@ -90,6 +104,11 @@ export default function ProductDetail({ product }: any) {
         (tier: any) => tier.unit_id === unitId,
     );
     const unavailable = product.stock_status === 'out_of_stock';
+    const productDescription = toPlainText(
+        product.description_long ||
+            product.description_short ||
+            'Belum ada deskripsi produk.',
+    );
 
     return (
         <StorefrontLayout title={product.name}>
@@ -227,42 +246,39 @@ export default function ProductDetail({ product }: any) {
                                     aria-label="Kurangi jumlah"
                                     className="grid size-12 place-items-center"
                                     onClick={() =>
-                                        setQuantity(
-                                            Math.max(0.001, quantity - 1),
+                                        setQuantityInput(
+                                            String(
+                                                Math.max(0.001, quantity - 1),
+                                            ),
                                         )
                                     }
                                 >
                                     <Minus className="size-4" />
                                 </button>
                                 <input
-                                    type="number"
-                                    min="0.001"
-                                    step="0.001"
-                                    value={quantity}
-                                    onChange={(e) =>
-                                        setQuantity(
-                                            Math.max(
-                                                0.001,
-                                                Number(e.target.value),
-                                            ),
-                                        )
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={quantityInput}
+                                    onChange={(event) =>
+                                        updateQuantity(event.target.value)
                                     }
+                                    onBlur={normalizeQuantity}
                                     className="h-full w-16 border-x text-center font-bold outline-none"
                                 />
                                 <button
                                     type="button"
                                     aria-label="Tambah jumlah"
                                     className="grid size-12 place-items-center"
-                                    onClick={() => setQuantity(quantity + 1)}
+                                    onClick={() =>
+                                        setQuantityInput(String(quantity + 1))
+                                    }
                                 >
                                     <Plus className="size-4" />
                                 </button>
                             </div>
                             <button
                                 disabled={
-                                    unavailable ||
-                                    !quote ||
-                                    quoteRequest.processing
+                                    unavailable || !quote || quantity < 0.001
                                 }
                                 onClick={addToCart}
                                 className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-lime-400 px-5 font-bold text-stone-950 transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:bg-stone-200"
@@ -338,17 +354,18 @@ export default function ProductDetail({ product }: any) {
                 )}
                 <section className="mt-8 rounded-3xl bg-white p-6 md:p-8">
                     <h2 className="text-xl font-black">Tentang produk</h2>
-                    <div
-                        className="mt-4 max-w-3xl leading-7 text-stone-600"
-                        dangerouslySetInnerHTML={{
-                            __html:
-                                product.description_long ||
-                                product.description_short ||
-                                'Belum ada deskripsi produk.',
-                        }}
-                    />
+                    <p className="mt-4 max-w-3xl leading-7 whitespace-pre-line text-stone-600">
+                        {productDescription}
+                    </p>
                 </section>
             </div>
         </StorefrontLayout>
     );
+}
+
+function toPlainText(value: string): string {
+    return value
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
 }

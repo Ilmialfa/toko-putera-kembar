@@ -108,3 +108,33 @@ it('respects usage limits', function () {
     expect($result['discount_total'])->toEqual(0);
     expect($result['applied_promotions'])->toBeEmpty();
 });
+
+it('applies a bundle discount once for each completed bundle', function () {
+    $promo = Promotion::create([
+        'store_id' => $this->store->id,
+        'name' => 'Paket Indomie 3',
+        'type' => 'bundling',
+        'status' => 'active',
+        'start_date' => now()->subDay(),
+        'end_date' => now()->addDays(5),
+        'channel' => 'both',
+        'applicable_scope' => 'product',
+        'is_active' => true,
+    ]);
+    $promo->conditions()->create([
+        'conditionable_type' => 'product',
+        'conditionable_id' => 11,
+        'min_qty' => 3,
+    ]);
+    $promo->rewards()->create([
+        'reward_type' => 'fixed_discount',
+        'value' => 500,
+    ]);
+
+    $result = $this->engine->calculate($this->store->id, 'pos', [
+        ['product_id' => 11, 'qty' => 6, 'price_per_unit' => 3500, 'subtotal' => 21000, 'category_id' => 1],
+    ], 21000);
+
+    expect($result['discount_total'])->toEqual(1000)
+        ->and($result['items'][0]['net_subtotal'])->toEqual(20000);
+});

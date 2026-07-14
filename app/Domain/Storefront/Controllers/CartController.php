@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -54,7 +56,7 @@ class CartController extends Controller
         return inertia('storefront/Cart', ['cart' => ['id' => $cart->id, 'items' => $items]]);
     }
 
-    public function store(Request $request, PriceResolutionService $priceResolutionService)
+    public function store(Request $request, PriceResolutionService $priceResolutionService): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
@@ -78,6 +80,13 @@ class CartController extends Controller
             $item->increment('qty', $validated['qty']);
         } else {
             $cart->items()->create($validated);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Ditambahkan ke keranjang.',
+                'cart_count' => $cart->items()->count(),
+            ]);
         }
 
         return redirect()->back()->with('success', 'Ditambahkan ke keranjang.');

@@ -5,6 +5,7 @@ namespace App\Domain\Catalog\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -34,13 +35,18 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:categories,id',
-            'image_path' => 'nullable|string',
-            'icon' => 'nullable|string',
+            'image' => ['nullable', 'image', 'max:5120'],
+            'icon' => ['nullable', 'string', 'max:80'],
             'display_order' => 'integer',
             'is_active' => 'boolean',
         ]);
 
         $validated['slug'] = Str::slug($validated['name']).'-'.strtolower(Str::random(4));
+        unset($validated['image']);
+
+        if ($request->hasFile('image')) {
+            $validated['image_path'] = $request->file('image')->store('categories', 'public');
+        }
 
         Category::create($validated);
 
@@ -52,11 +58,21 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:categories,id',
-            'image_path' => 'nullable|string',
-            'icon' => 'nullable|string',
+            'image' => ['nullable', 'image', 'max:5120'],
+            'icon' => ['nullable', 'string', 'max:80'],
             'display_order' => 'integer',
             'is_active' => 'boolean',
         ]);
+
+        unset($validated['image']);
+
+        if ($request->hasFile('image')) {
+            if ($category->image_path !== null) {
+                Storage::disk('public')->delete($category->image_path);
+            }
+
+            $validated['image_path'] = $request->file('image')->store('categories', 'public');
+        }
 
         if ($request->name !== $category->name) {
             $validated['slug'] = Str::slug($validated['name']).'-'.strtolower(Str::random(4));
@@ -69,6 +85,10 @@ class CategoryController extends Controller
 
     public function destroy(Category $category)
     {
+        if ($category->image_path !== null) {
+            Storage::disk('public')->delete($category->image_path);
+        }
+
         $category->delete();
 
         return redirect()->back()->with('success', 'Category deleted successfully');

@@ -39,6 +39,11 @@ interface Props {
         total: number;
     };
     cashAccounts: { id: number; name: string }[];
+    summary: {
+        outstanding_total: number;
+        open_count: number;
+        overdue_count: number;
+    };
 }
 
 const statusConfig = {
@@ -53,7 +58,11 @@ const statusConfig = {
     paid: { label: 'Lunas', className: 'bg-green-500/10 text-green-700' },
 };
 
-export default function ReceivablesIndex({ receivables, cashAccounts }: Props) {
+export default function ReceivablesIndex({
+    receivables,
+    cashAccounts,
+    summary,
+}: Props) {
     const [payDialog, setPayDialog] = useState<{
         open: boolean;
         receivable: Receivable | null;
@@ -96,13 +105,9 @@ export default function ReceivablesIndex({ receivables, cashAccounts }: Props) {
         );
     };
 
-    const totalUnpaid = receivables.data
-        .filter((r) => r.status !== 'paid')
-        .reduce((sum, r) => sum + (r.amount - r.paid_amount), 0);
-
     return (
-        <AdminLayout title="Piutang & Hutang">
-            <Head title="Piutang & Hutang" />
+        <AdminLayout title="Piutang Pelanggan">
+            <Head title="Piutang Pelanggan" />
 
             <div className="space-y-6 p-6">
                 <div className="flex items-center justify-between">
@@ -119,30 +124,26 @@ export default function ReceivablesIndex({ receivables, cashAccounts }: Props) {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-border bg-card p-5">
                         <p className="mb-1 text-sm text-muted-foreground">
-                            Total Piutang Belum Lunas
+                            Piutang Belum Lunas
                         </p>
                         <p className="text-2xl font-bold text-orange-600">
-                            {formatRupiah(totalUnpaid)}
+                            {formatRupiah(summary.outstanding_total)}
                         </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-5">
                         <p className="mb-1 text-sm text-muted-foreground">
-                            Total Transaksi
+                            Tagihan Aktif
                         </p>
                         <p className="text-2xl font-bold text-foreground">
-                            {receivables.total}
+                            {summary.open_count}
                         </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-5">
                         <p className="mb-1 text-sm text-muted-foreground">
-                            Sudah Lunas
+                            Lewat Jatuh Tempo
                         </p>
-                        <p className="text-2xl font-bold text-green-600">
-                            {
-                                receivables.data.filter(
-                                    (r) => r.status === 'paid',
-                                ).length
-                            }
+                        <p className="text-2xl font-bold text-destructive">
+                            {summary.overdue_count}
                         </p>
                     </div>
                 </div>

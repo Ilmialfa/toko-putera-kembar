@@ -16,10 +16,10 @@ class StoreLocationSeeder extends Seeder
             ['is_main' => true],
             [
                 'name' => 'Toko Putera Kembar Utama',
-                'address' => 'Jl. Grosir No. 1, Jakarta',
-                'latitude' => -6.200000,
-                'longitude' => 106.816666,
-                'delivery_radius_km' => 15.00,
+                'address' => 'Jl. Grosir No. 1, Pekanbaru, Riau',
+                'latitude' => 0.5600695,
+                'longitude' => 101.4419508,
+                'delivery_radius_km' => 3.00,
                 'phone' => '081234567890',
                 'operating_hours_json' => [
                     'monday' => ['08:00', '20:00'],

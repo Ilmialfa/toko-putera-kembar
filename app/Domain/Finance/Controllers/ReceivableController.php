@@ -5,6 +5,7 @@ namespace App\Domain\Finance\Controllers;
 use App\Domain\Finance\Services\JournalService;
 use App\Http\Controllers\Controller;
 use App\Models\CashAccount;
+use App\Models\CashMovement;
 use App\Models\Customer;
 use App\Models\PaymentRecord;
 use App\Models\Receivable;
@@ -17,15 +18,33 @@ use Inertia\Response;
 
 class ReceivableController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $storeId = (int) $request->user()->store_id;
+        $receivables = Receivable::query()
+            ->with(['customer', 'sale'])
+            ->orderByRaw("CASE status WHEN 'unpaid' THEN 0 WHEN 'partial' THEN 1 ELSE 2 END")
+            ->latest('due_date');
+
         return Inertia::render('admin/finance/receivables/Index', [
-            'receivables' => Receivable::query()
-                ->with(['customer', 'sale'])
-                ->orderByRaw("CASE status WHEN 'unpaid' THEN 0 WHEN 'partial' THEN 1 ELSE 2 END")
-                ->latest('due_date')
-                ->paginate(15),
-            'cashAccounts' => CashAccount::query()->where('is_active', true)->get(),
+            'receivables' => $receivables->paginate(15),
+            'cashAccounts' => CashAccount::query()
+                ->where('store_id', $storeId)
+                ->where('is_active', true)
+                ->get(),
+            'summary' => [
+                'outstanding_total' => (float) (clone $receivables)
+                    ->whereIn('status', ['unpaid', 'partial'])
+                    ->selectRaw('COALESCE(SUM(amount - paid_amount), 0) AS total')
+                    ->value('total'),
+                'open_count' => (clone $receivables)
+                    ->whereIn('status', ['unpaid', 'partial'])
+                    ->count(),
+                'overdue_count' => (clone $receivables)
+                    ->whereIn('status', ['unpaid', 'partial'])
+                    ->whereDate('due_date', '<', today())
+                    ->count(),
+            ],
         ]);
     }
 
@@ -51,7 +70,10 @@ class ReceivableController extends Controller
                 abort(422, 'Jumlah cicilan melebihi sisa piutang.');
             }
 
-            $cashAccount = CashAccount::query()->findOrFail($data['cash_account_id']);
+            $cashAccount = CashAccount::query()
+                ->where('store_id', $user->store_id)
+                ->where('is_active', true)
+                ->findOrFail($data['cash_account_id']);
             $payment = PaymentRecord::query()->create([
                 'payable_type' => Receivable::class,
                 'payable_id' => $lockedReceivable->id,
@@ -65,6 +87,14 @@ class ReceivableController extends Controller
             $lockedReceivable->update([
                 'paid_amount' => $newPaidAmount,
                 'status' => $newPaidAmount >= (float) $lockedReceivable->amount ? 'paid' : 'partial',
+            ]);
+            CashMovement::query()->create([
+                'cashier_shift_id' => null,
+                'cash_account_id' => $cashAccount->id,
+                'type' => 'in',
+                'amount' => $amount,
+                'reason' => 'Pelunasan piutang #'.$lockedReceivable->id,
+                'created_by' => $user->id,
             ]);
 
             $sale = $lockedReceivable->sale_id === null
@@ -82,12 +112,17 @@ class ReceivableController extends Controller
                 PaymentRecord::class,
                 (int) $payment->id,
                 [
-                    ['account_code' => $cashAccount->type === 'bank' ? '1110' : '1100', 'debit' => $amount, 'credit' => 0],
+                    ['account_code' => $this->cashAccountCode($cashAccount), 'debit' => $amount, 'credit' => 0],
                     ['account_code' => '1200', 'debit' => 0, 'credit' => $amount],
                 ],
             );
         });
 
         return back()->with('success', 'Pembayaran piutang berhasil dicatat.');
+    }
+
+    private function cashAccountCode(CashAccount $cashAccount): string
+    {
+        return $cashAccount->type === 'cash' ? '1100' : '1110';
     }
 }

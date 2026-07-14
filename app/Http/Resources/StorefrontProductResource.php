@@ -29,6 +29,7 @@ class StorefrontProductResource extends JsonResource
             'category' => $this->whenLoaded('category', fn () => $this->category?->only(['id', 'name', 'slug'])),
             'brand' => $this->whenLoaded('brand', fn () => $this->brand?->only(['id', 'name', 'slug'])),
             'display_price_prefix' => $this->display_price_prefix,
+            'base_unit_id' => (int) $this->base_unit_id,
             'display_quote' => $this->quote((int) ($this->online_display_unit_id ?: $this->base_unit_id)),
             'sales_units' => $this->salesUnits(),
             'price_tiers' => $this->relationLoaded('prices') ? $this->prices

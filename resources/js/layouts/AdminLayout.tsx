@@ -6,7 +6,6 @@ import {
     Warehouse,
     Tag,
     BarChart3,
-    FileText,
     ChevronDown,
     LogOut,
     Store,
@@ -17,17 +16,15 @@ import {
     Receipt,
     CalendarCheck,
     Megaphone,
-    BookOpen,
-    HelpCircle,
     LayoutList,
-    Building2,
     Truck,
     Box,
     ShoppingBag,
-    ClipboardList,
     WalletCards,
     ShieldCheck,
     Users,
+    Coins,
+    Image,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import {
@@ -63,12 +60,43 @@ interface NavItem {
     icon?: React.ElementType;
     children?: NavItem[];
     permission?: string;
+    permissions?: string[];
+    exact?: boolean;
 }
 
 interface NavigationGroup {
     label: string;
     items: NavItem[];
 }
+
+const mobileNavigation: NavItem[] = [
+    {
+        label: 'Beranda',
+        href: '/admin/dashboard',
+        icon: LayoutDashboard,
+        permission: 'finance.view',
+        exact: true,
+    },
+    {
+        label: 'Kasir',
+        href: '/admin/pos',
+        icon: ShoppingCart,
+        permission: 'pos.use',
+        exact: true,
+    },
+    {
+        label: 'Pesanan',
+        href: '/admin/orders',
+        icon: ShoppingBag,
+        permission: 'orders.view',
+    },
+    {
+        label: 'Stok',
+        href: '/admin/inventory/reports',
+        icon: Warehouse,
+        permission: 'inventory.view',
+    },
+];
 
 const navigationGroups: NavigationGroup[] = [
     {
@@ -89,6 +117,13 @@ const navigationGroups: NavigationGroup[] = [
                 href: '/admin/pos',
                 icon: ShoppingCart,
                 permission: 'pos.use',
+                exact: true,
+            },
+            {
+                label: 'Riwayat Transaksi',
+                href: '/admin/sales/transactions',
+                icon: Receipt,
+                permissions: ['pos.use', 'orders.view'],
             },
             {
                 label: 'Pesanan Online',
@@ -101,6 +136,30 @@ const navigationGroups: NavigationGroup[] = [
                 href: '/admin/pos/sale-returns',
                 icon: Receipt,
                 permission: 'pos.use',
+            },
+        ],
+    },
+    {
+        label: 'PROMOSI & LOYALITAS',
+        items: [
+            {
+                label: 'Promosi & Voucher',
+                icon: Megaphone,
+                permission: 'promotions.view',
+                children: [
+                    {
+                        label: 'Manajemen Promosi',
+                        href: '/admin/promotions',
+                        icon: Megaphone,
+                        exact: true,
+                    },
+                    {
+                        label: 'Aturan Poin Pelanggan',
+                        href: '/admin/promotions/loyalty-settings',
+                        icon: Coins,
+                        permission: 'promotions.manage',
+                    },
+                ],
             },
         ],
     },
@@ -132,11 +191,6 @@ const navigationGroups: NavigationGroup[] = [
                         href: '/admin/master/units',
                         icon: Tag,
                     },
-                    {
-                        label: 'Tag Produk',
-                        href: '/admin/master/tags',
-                        icon: Tag,
-                    },
                 ],
             },
             {
@@ -150,39 +204,14 @@ const navigationGroups: NavigationGroup[] = [
                         icon: TrendingUp,
                     },
                     {
-                        label: 'Purchase Order',
-                        href: '/admin/inventory/operations?section=purchase-orders',
-                        icon: ClipboardList,
-                    },
-                    {
-                        label: 'Transfer Gudang',
-                        href: '/admin/inventory/operations?section=transfers',
-                        icon: Warehouse,
-                    },
-                    {
-                        label: 'Stock Opname',
-                        href: '/admin/inventory/operations?section=opnames',
-                        icon: ClipboardList,
-                    },
-                    {
-                        label: 'Penyesuaian Stok',
-                        href: '/admin/inventory/operations?section=adjustments',
-                        icon: Box,
-                    },
-                    {
-                        label: 'Retur ke Supplier',
-                        href: '/admin/inventory/operations?section=returns',
-                        icon: Truck,
+                        label: 'Hutang Supplier',
+                        href: '/admin/inventory/supplier-debts',
+                        icon: TrendingUp,
                     },
                     {
                         label: 'Data Supplier',
                         href: '/admin/inventory/suppliers',
                         icon: Truck,
-                    },
-                    {
-                        label: 'Lokasi Gudang',
-                        href: '/admin/inventory/warehouses',
-                        icon: Building2,
                     },
                     {
                         label: 'Laporan Persediaan',
@@ -196,12 +225,6 @@ const navigationGroups: NavigationGroup[] = [
     {
         label: 'MANAJEMEN OPERASIONAL',
         items: [
-            {
-                label: 'Promosi & Voucher',
-                href: '/admin/promotions',
-                icon: Megaphone,
-                permission: 'promotions.view',
-            },
             {
                 label: 'Keuangan & Akuntansi',
                 icon: DollarSign,
@@ -253,20 +276,19 @@ const navigationGroups: NavigationGroup[] = [
         items: [
             {
                 label: 'Konten Website',
-                icon: FileText,
-                permission: 'cms.view',
+                icon: Megaphone,
+                permission: 'cms.manage',
                 children: [
                     {
-                        label: 'Halaman Website',
-                        href: '/admin/cms/pages',
-                        icon: FileText,
+                        label: 'Artikel & Informasi',
+                        href: '/admin/cms/blogs',
+                        icon: LayoutList,
                     },
                     {
-                        label: 'Artikel Blog',
-                        href: '/admin/cms/blogs',
-                        icon: BookOpen,
+                        label: 'Banner Promo',
+                        href: '/admin/promotions',
+                        icon: Image,
                     },
-                    { label: 'FAQ', href: '/admin/cms/faqs', icon: HelpCircle },
                 ],
             },
             {
@@ -296,10 +318,12 @@ function isNavigationActive(
     href: string,
     pathname: string,
     search: string,
+    exact: boolean = false,
 ): boolean {
     const [targetPath, targetQuery = ''] = href.split('?');
-    const pathMatches =
-        pathname === targetPath || pathname.startsWith(`${targetPath}/`);
+    const pathMatches = exact
+        ? pathname === targetPath
+        : pathname === targetPath || pathname.startsWith(`${targetPath}/`);
 
     if (!pathMatches) {
         return false;
@@ -322,11 +346,12 @@ function NavMenuItem({
     search: string;
 }) {
     const isActive = item.href
-        ? isNavigationActive(item.href, pathname, search)
+        ? isNavigationActive(item.href, pathname, search, item.exact)
         : false;
     const isParentActive = item.children?.some(
         (child) =>
-            child.href && isNavigationActive(child.href, pathname, search),
+            child.href &&
+            isNavigationActive(child.href, pathname, search, child.exact),
     );
     const [open, setOpen] = useState(isParentActive || false);
 
@@ -335,13 +360,7 @@ function NavMenuItem({
             <Collapsible open={open} onOpenChange={setOpen}>
                 <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                            className={
-                                isParentActive
-                                    ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
-                                    : ''
-                            }
-                        >
+                        <SidebarMenuButton>
                             {item.icon && <item.icon className="h-4 w-4" />}
                             <span>{item.label}</span>
                             <ChevronDown
@@ -361,6 +380,7 @@ function NavMenuItem({
                                                       child.href,
                                                       pathname,
                                                       search,
+                                                      child.exact,
                                                   )
                                                 : false
                                         }
@@ -408,8 +428,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             items: group.items
                 .filter(
                     (item) =>
-                        !item.permission ||
-                        permissions.includes(item.permission),
+                        (!item.permission ||
+                            permissions.includes(item.permission)) &&
+                        (!item.permissions ||
+                            item.permissions.some((permission) =>
+                                permissions.includes(permission),
+                            )),
                 )
                 .map((item) => ({
                     ...item,
@@ -422,6 +446,9 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                 .filter((item) => !item.children || item.children.length > 0),
         }))
         .filter((group) => group.items.length > 0);
+    const visibleMobileNavigation = mobileNavigation.filter(
+        (item) => !item.permission || permissions.includes(item.permission),
+    );
 
     return (
         <SidebarProvider
@@ -437,8 +464,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                                 href="/admin/dashboard"
                                 className="flex min-w-0 items-center gap-2 text-lg font-bold hover:opacity-80"
                             >
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                                    PK
+                                <div className="flex h-9 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-lime-200 bg-white">
+                                    <img
+                                        src="/images/brand/logo-putera-kembar.png"
+                                        alt="Logo Toko Putera Kembar"
+                                        className="size-13 max-w-none object-contain"
+                                    />
                                 </div>
                                 <span className="truncate text-sidebar-foreground group-data-[collapsible=icon]:hidden">
                                     Putera Kembar
@@ -452,11 +483,8 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                     </SidebarHeader>
 
                     <SidebarContent className="px-3 py-3">
-                        {visibleNavigationGroups.map((group, index) => (
-                            <SidebarGroup
-                                key={group.label}
-                                className={`p-0 ${index === 0 ? '' : 'mt-3'}`}
-                            >
+                        {visibleNavigationGroups.map((group) => (
+                            <SidebarGroup key={group.label} className="p-0">
                                 <SidebarGroupContent>
                                     <SidebarMenu>
                                         {group.items.map((item) => (
@@ -512,7 +540,39 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
                 {/* Main Content */}
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                    <main className="flex-1 overflow-auto">{children}</main>
+                    <main className="flex-1 overflow-auto pb-20 md:pb-0">
+                        {children}
+                    </main>
+                    {visibleMobileNavigation.length > 0 && (
+                        <nav className="fixed inset-x-3 bottom-3 z-50 grid auto-cols-fr grid-flow-col rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur md:hidden">
+                            {visibleMobileNavigation.map((item) => {
+                                const Icon = item.icon ?? LayoutDashboard;
+                                const isActive = item.href
+                                    ? isNavigationActive(
+                                          item.href,
+                                          pathname,
+                                          search,
+                                          item.exact,
+                                      )
+                                    : false;
+
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href!}
+                                        className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-semibold transition ${
+                                            isActive
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground'
+                                        }`}
+                                    >
+                                        <Icon className="size-4" />
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+                    )}
                 </div>
             </div>
         </SidebarProvider>

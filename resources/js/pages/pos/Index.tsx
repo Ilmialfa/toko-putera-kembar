@@ -15,7 +15,7 @@ import {
     UserRound,
     WalletCards,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
@@ -29,6 +29,9 @@ import {
     store as storeParkedBill,
 } from '@/actions/App/Domain/Sales/Controllers/ParkBillController';
 import { search as searchProducts } from '@/actions/App/Domain/Sales/Controllers/PosProductController';
+import BarcodeCameraScanner from '@/components/barcode-camera-scanner';
+import { useConfirmation } from '@/components/confirmation-dialog';
+import FormattedNumberInput from '@/components/formatted-number-input';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -49,7 +52,6 @@ import {
 } from '@/components/ui/sheet';
 import PosLayout from '@/layouts/pos-layout';
 import { formatCurrency, formatNumber } from '@/lib/utils';
-import { validate as validateVoucher } from '@/routes/admin/pos/vouchers';
 
 interface Shift {
     id: number;
@@ -88,14 +90,6 @@ interface Product {
     default_warehouse_id: number;
     stock: number;
     sales_units: SalesUnit[];
-}
-
-interface AppliedPromotion {
-    promotion_id: number;
-    voucher_id: number | null;
-    amount: number;
-    type: string;
-    name: string;
 }
 
 interface CartItem {
@@ -144,20 +138,27 @@ interface PaymentRow {
     id: string;
     method: string;
     amount: number;
+    points_to_redeem: number;
     reference_number: string;
 }
 
-interface ProductSearchResponse {
-    data: { data: Product[] };
+interface LoyaltySettings {
+    enabled: boolean;
+    earn_spend_amount: number;
+    earn_points: number;
+    redeem_value: number;
+    redeem_min_points: number;
+    redeem_max_points: number;
+    redeem_max_percentage: number;
+    expiry_months: number;
 }
 
-interface VoucherResponse {
-    voucher: { id: number };
-    promotion: {
-        id: number;
-        name: string;
-        type: string;
-        rewards?: Array<{ reward_type: string; value: number }>;
+interface ProductSearchResponse {
+    data: {
+        data: Product[];
+        current_page: number;
+        last_page: number;
+        total: number;
     };
 }
 
@@ -177,6 +178,7 @@ interface CheckoutPayload {
     payments: Array<{
         method: string;
         amount: number;
+        points_to_redeem?: number;
         reference_number?: string;
     }>;
     voucher_code: string | null;
@@ -206,6 +208,7 @@ interface PosIndexProps {
     categories: Category[];
     customers: Customer[];
     cashier: { id: number; name: string };
+    loyaltySettings: LoyaltySettings;
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -241,10 +244,15 @@ export default function PosIndex({
     categories,
     customers,
     cashier,
+    loyaltySettings,
 }: PosIndexProps) {
-    const [openingBalance, setOpeningBalance] = useState('0');
+    const confirm = useConfirmation();
+    const [openingBalance, setOpeningBalance] = useState(0);
     const [isOpeningShift, setIsOpeningShift] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
+    const [nextProductPage, setNextProductPage] = useState<number | null>(null);
+    const [productTotal, setProductTotal] = useState(0);
+    const [isLoadingMoreProducts, setIsLoadingMoreProducts] = useState(false);
     const [search, setSearch] = useState('');
     const [categoryId, setCategoryId] = useState('all');
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -255,14 +263,9 @@ export default function PosIndex({
     const [isCartSheetOpen, setIsCartSheetOpen] = useState(false);
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
     const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
-    const [closingBalanceActual, setClosingBalanceActual] = useState('');
+    const [closingBalanceActual, setClosingBalanceActual] = useState(0);
     const [closingNotes, setClosingNotes] = useState('');
     const [isClosingShift, setIsClosingShift] = useState(false);
-    const [voucherCode, setVoucherCode] = useState('');
-    const [validatedVoucherCode, setValidatedVoucherCode] = useState('');
-    const [appliedPromotions, setAppliedPromotions] = useState<
-        AppliedPromotion[]
-    >([]);
     const [manualDiscount, setManualDiscount] = useState(0);
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [receivableDueDate, setReceivableDueDate] =
@@ -272,10 +275,6 @@ export default function PosIndex({
         Record<string, never>,
         ProductSearchResponse
     >({});
-    const voucherRequest = useHttp<
-        { code: string; store_id: number },
-        VoucherResponse
-    >({ code: '', store_id: currentShift?.store_id ?? 0 });
     const checkoutRequest = useHttp<
         CheckoutPayload,
         { sale: { sale_number: string; id: number } }
@@ -305,32 +304,98 @@ export default function PosIndex({
         { message: string }
     >({});
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const productLoadMoreRef = useRef<HTMLDivElement>(null);
+
+    const requestProducts = useCallback(
+        async (page: number, append = false) => {
+            const response = await productRequest.get(
+                searchProducts.url({
+                    query: {
+                        q: search || undefined,
+                        category_id:
+                            categoryId === 'all' ? undefined : categoryId,
+                        page,
+                    },
+                }),
+            );
+            const result = response.data;
+
+            setProducts((current) => {
+                if (!append) {
+                    return result.data;
+                }
+
+                const existingProductIds = new Set(
+                    current.map((product) => product.id),
+                );
+
+                return [
+                    ...current,
+                    ...result.data.filter(
+                        (product) => !existingProductIds.has(product.id),
+                    ),
+                ];
+            });
+            setProductTotal(result.total);
+            setNextProductPage(
+                result.current_page < result.last_page
+                    ? result.current_page + 1
+                    : null,
+            );
+        },
+        [categoryId, productRequest, search],
+    );
 
     useEffect(() => {
         if (!currentShift) {
             return;
         }
 
-        const fetchProducts = async () => {
-            try {
-                const response = await productRequest.get(
-                    searchProducts.url({
-                        query: {
-                            q: search || undefined,
-                            category_id:
-                                categoryId === 'all' ? undefined : categoryId,
-                        },
-                    }),
-                );
-                setProducts(response.data.data);
-            } catch {
+        const timeout = window.setTimeout(() => {
+            requestProducts(1).catch(() => {
                 toast.error('Daftar produk tidak dapat dimuat.');
-            }
-        };
-        const timeout = window.setTimeout(fetchProducts, 250);
+            });
+        }, 250);
 
         return () => window.clearTimeout(timeout);
-    }, [categoryId, currentShift, productRequest, search]);
+    }, [currentShift, requestProducts]);
+
+    const loadMoreProducts = useCallback(async () => {
+        if (nextProductPage === null || isLoadingMoreProducts) {
+            return;
+        }
+
+        setIsLoadingMoreProducts(true);
+
+        try {
+            await requestProducts(nextProductPage, true);
+        } catch {
+            toast.error('Produk berikutnya tidak dapat dimuat.');
+        } finally {
+            setIsLoadingMoreProducts(false);
+        }
+    }, [isLoadingMoreProducts, nextProductPage, requestProducts]);
+
+    useEffect(() => {
+        const target = productLoadMoreRef.current;
+
+        if (!target || nextProductPage === null) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) {
+                    void loadMoreProducts();
+                }
+            },
+            { rootMargin: '320px' },
+        );
+
+        observer.observe(target);
+
+        return () => observer.disconnect();
+    }, [loadMoreProducts, nextProductPage]);
 
     const cartSubtotal = cart.reduce(
         (total, item) => total + item.price_per_unit * item.qty,
@@ -340,18 +405,32 @@ export default function PosIndex({
         (total, item) => total + item.discount_amount,
         0,
     );
-    const promotionDiscountTotal = appliedPromotions.reduce(
-        (total, promotion) => total + promotion.amount,
-        0,
-    );
     const totalDiscount = Math.min(
         cartSubtotal,
-        itemDiscountTotal + promotionDiscountTotal + manualDiscount,
+        itemDiscountTotal + manualDiscount,
     );
     const totalAmount = Math.max(0, cartSubtotal - totalDiscount);
     const cartQuantity = cart.reduce((total, item) => total + item.qty, 0);
+    const selectedCustomer = customers.find(
+        (customer) => customer.id === Number(customerId),
+    );
+    const paymentAmount = (payment: PaymentRow): number =>
+        payment.method === 'points'
+            ? payment.points_to_redeem * loyaltySettings.redeem_value
+            : Number(payment.amount || 0);
+    const maximumPointsForTransaction = Math.max(
+        0,
+        Math.min(
+            loyaltySettings.redeem_max_points,
+            Math.floor(
+                (totalAmount * (loyaltySettings.redeem_max_percentage / 100)) /
+                    loyaltySettings.redeem_value,
+            ),
+            selectedCustomer?.loyalty_point_balance ?? 0,
+        ),
+    );
     const paymentTotal = payments.reduce(
-        (total, payment) => total + Number(payment.amount || 0),
+        (total, payment) => total + paymentAmount(payment),
         0,
     );
     const paymentShortage = Math.max(0, totalAmount - paymentTotal);
@@ -364,9 +443,6 @@ export default function PosIndex({
         setCart([]);
         setCustomerId('');
         setParkedSaleId(null);
-        setAppliedPromotions([]);
-        setValidatedVoucherCode('');
-        setVoucherCode('');
         setManualDiscount(0);
         setPayments([]);
     };
@@ -376,7 +452,7 @@ export default function PosIndex({
         setIsOpeningShift(true);
         router.post(
             openShift.url(),
-            { opening_balance: openingBalance },
+            { opening_balance: openingBalance || 0 },
             {
                 preserveState: true,
                 onError: (errors) =>
@@ -396,7 +472,7 @@ export default function PosIndex({
         router.post(
             closeShift.url(),
             {
-                closing_balance_actual: closingBalanceActual,
+                closing_balance_actual: closingBalanceActual || 0,
                 notes: closingNotes || null,
             },
             {
@@ -540,56 +616,6 @@ export default function PosIndex({
         );
     };
 
-    const applyVoucher = async () => {
-        if (!voucherCode || !currentShift) {
-            return;
-        }
-
-        try {
-            voucherRequest.transform(() => ({
-                code: voucherCode,
-                store_id: currentShift.store_id,
-            }));
-            const { voucher, promotion } = await voucherRequest.post(
-                validateVoucher.url(),
-            );
-            const reward = promotion.rewards?.[0];
-            let amount = 0;
-
-            if (reward?.reward_type === 'percent_discount') {
-                amount = cartSubtotal * (reward.value / 100);
-            } else if (reward?.reward_type === 'fixed_discount') {
-                amount = reward.value;
-            }
-
-            amount = Math.min(amount, cartSubtotal);
-
-            if (amount <= 0) {
-                toast.error('Voucher ini belum memiliki nilai diskon.');
-
-                return;
-            }
-
-            setAppliedPromotions((promotions) => [
-                ...promotions.filter(
-                    (promotionItem) => promotionItem.voucher_id !== voucher.id,
-                ),
-                {
-                    promotion_id: promotion.id,
-                    voucher_id: voucher.id,
-                    amount,
-                    type: promotion.type,
-                    name: promotion.name,
-                },
-            ]);
-            setValidatedVoucherCode(voucherCode.toUpperCase());
-            setVoucherCode('');
-            toast.success('Voucher berhasil diterapkan.');
-        } catch {
-            toast.error('Voucher tidak valid atau sudah kedaluwarsa.');
-        }
-    };
-
     const openParkedBills = async () => {
         if (!currentShift) {
             return;
@@ -707,7 +733,15 @@ export default function PosIndex({
     };
 
     const cancelParkedBill = async (bill: ParkedBill) => {
-        if (!window.confirm(`Batalkan antrian ${bill.sale_number}?`)) {
+        if (
+            !(await confirm({
+                title: `Batalkan antrian ${bill.sale_number}?`,
+                description:
+                    'Keranjang transaksi yang ditahan ini akan dihapus dan tidak dapat dilanjutkan kembali.',
+                confirmLabel: 'Batalkan antrian',
+                destructive: true,
+            }))
+        ) {
             return;
         }
 
@@ -734,6 +768,7 @@ export default function PosIndex({
                 id: `payment-${Date.now()}`,
                 method: 'cash',
                 amount: totalAmount,
+                points_to_redeem: 0,
                 reference_number: '',
             },
         ]);
@@ -748,6 +783,7 @@ export default function PosIndex({
                 id: `payment-${Date.now()}`,
                 method: 'qris',
                 amount: Math.max(0, paymentShortage),
+                points_to_redeem: 0,
                 reference_number: '',
             },
         ]);
@@ -755,13 +791,19 @@ export default function PosIndex({
 
     const updatePayment = (
         paymentId: string,
-        field: 'method' | 'amount' | 'reference_number',
+        field: 'method' | 'amount' | 'points_to_redeem' | 'reference_number',
         value: string | number,
     ) => {
         setPayments((rows) =>
             rows.map((payment) =>
                 payment.id === paymentId
-                    ? { ...payment, [field]: value }
+                    ? {
+                          ...payment,
+                          [field]: value,
+                          ...(field === 'method' && value === 'points'
+                              ? { amount: 0, points_to_redeem: 0 }
+                              : {}),
+                      }
                     : payment,
             ),
         );
@@ -806,20 +848,39 @@ export default function PosIndex({
                 discount_amount: item.discount_amount,
             })),
             payments: payments
-                .filter((payment) => payment.amount > 0)
+                .filter((payment) => paymentAmount(payment) > 0)
                 .map((payment) => ({
                     method: payment.method,
-                    amount: Number(payment.amount),
+                    amount: paymentAmount(payment),
+                    points_to_redeem:
+                        payment.method === 'points'
+                            ? payment.points_to_redeem
+                            : undefined,
                     reference_number: payment.reference_number || undefined,
                 })),
-            voucher_code: validatedVoucherCode || null,
+            voucher_code: null,
             parked_sale_id: parkedSaleId,
             receivable_due_date: usesReceivable ? receivableDueDate : null,
         };
 
         try {
             checkoutRequest.transform(() => payload);
-            const response = await checkoutRequest.post(checkoutStore.url());
+            const response = await checkoutRequest.post(checkoutStore.url(), {
+                onError: (errors) => {
+                    toast.error(
+                        errors.payments ??
+                            errors.discount_total ??
+                            errors.customer_id ??
+                            errors.items ??
+                            'Data pembayaran belum dapat diproses. Periksa kembali isian yang diberi tanda.',
+                    );
+                },
+            });
+
+            if (!response) {
+                return;
+            }
+
             toast.success(`Transaksi ${response.sale.sale_number} berhasil.`);
             resetTransaction();
             setIsCheckoutModalOpen(false);
@@ -831,7 +892,7 @@ export default function PosIndex({
             );
         } catch {
             toast.error(
-                'Checkout gagal. Periksa stok, harga, promo, dan pembayaran.',
+                'Terjadi gangguan saat memproses pembayaran. Coba lagi.',
             );
         }
     };
@@ -884,18 +945,14 @@ export default function PosIndex({
                                 <Label htmlFor="opening_balance">
                                     Modal awal (Rp)
                                 </Label>
-                                <Input
+                                <FormattedNumberInput
                                     id="opening_balance"
-                                    type="number"
-                                    inputMode="numeric"
                                     value={openingBalance}
-                                    onChange={(event) =>
-                                        setOpeningBalance(event.target.value)
-                                    }
+                                    onValueChange={setOpeningBalance}
+                                    prefix="Rp"
                                     required
-                                    min="0"
                                     className="h-12 text-lg font-semibold"
-                                    placeholder="Contoh: 500000"
+                                    placeholder="Contoh: 500.000"
                                 />
                                 <p className="text-xs leading-5 text-stone-500">
                                     Isi 0 jika laci dimulai tanpa uang tunai.
@@ -1055,20 +1112,17 @@ export default function PosIndex({
                                         >
                                             <Minus className="size-3.5" />
                                         </button>
-                                        <input
+                                        <FormattedNumberInput
                                             aria-label={`Jumlah ${item.name}`}
-                                            type="number"
-                                            inputMode="decimal"
-                                            min="0.001"
-                                            step="0.001"
                                             value={item.qty}
-                                            onChange={(event) =>
+                                            kind="quantity"
+                                            onValueChange={(quantity) =>
                                                 updateQuantity(
                                                     item.id,
-                                                    Number(event.target.value),
+                                                    quantity,
                                                 )
                                             }
-                                            className="h-10 w-14 border-x border-stone-200 bg-white text-center text-sm font-bold"
+                                            className="h-10 w-20 rounded-none border-x border-y-0 bg-white px-1 text-center text-sm font-bold focus-visible:ring-0"
                                         />
                                         <button
                                             type="button"
@@ -1088,19 +1142,17 @@ export default function PosIndex({
                                 <div className="flex items-end justify-between gap-3">
                                     <label className="text-xs text-stone-500">
                                         Diskon item
-                                        <Input
-                                            type="number"
-                                            inputMode="numeric"
-                                            min="0"
-                                            value={item.discount_amount || ''}
-                                            onChange={(event) =>
+                                        <FormattedNumberInput
+                                            value={item.discount_amount}
+                                            onValueChange={(amount) =>
                                                 updateItemDiscount(
                                                     item.id,
-                                                    Number(event.target.value),
+                                                    amount,
                                                 )
                                             }
-                                            placeholder="Rp 0"
-                                            className="mt-1 h-9 w-28"
+                                            prefix="Rp"
+                                            placeholder="0"
+                                            className="mt-1 h-10 w-36"
                                         />
                                     </label>
                                     <div className="text-right">
@@ -1125,43 +1177,24 @@ export default function PosIndex({
             </div>
 
             <div className="space-y-3 border-t border-stone-200 bg-white p-4">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                    <Input
-                        placeholder="Kode voucher"
-                        value={voucherCode}
-                        onChange={(event) =>
-                            setVoucherCode(event.target.value.toUpperCase())
-                        }
-                        className="h-10 bg-white"
-                    />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={applyVoucher}
-                        disabled={!voucherCode || voucherRequest.processing}
-                    >
-                        Terapkan
-                    </Button>
-                </div>
-                <div className="grid grid-cols-[1fr_120px] items-center gap-3">
+                <div className="grid grid-cols-[1fr_148px] items-center gap-3">
                     <label
                         htmlFor="manual-discount"
                         className="text-sm text-stone-600"
                     >
                         Diskon transaksi
                     </label>
-                    <Input
+                    <FormattedNumberInput
                         id="manual-discount"
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        max={cartSubtotal}
-                        value={manualDiscount || ''}
-                        onChange={(event) =>
-                            setManualDiscount(Number(event.target.value))
+                        value={manualDiscount}
+                        onValueChange={(amount) =>
+                            setManualDiscount(
+                                Math.min(Math.max(0, amount), cartSubtotal),
+                            )
                         }
-                        placeholder="Rp 0"
-                        className="h-9 bg-white text-right"
+                        prefix="Rp"
+                        placeholder="0"
+                        className="h-11 bg-white text-right font-semibold"
                     />
                 </div>
                 <div className="space-y-1.5 text-sm">
@@ -1261,6 +1294,14 @@ export default function PosIndex({
                                 />
                                 <Barcode className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-stone-400" />
                             </div>
+                            <BarcodeCameraScanner
+                                label="Scan kamera"
+                                className="size-12 shrink-0 px-0"
+                                onDetected={(barcode) => {
+                                    setSearch(barcode);
+                                    searchInputRef.current?.focus();
+                                }}
+                            />
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1305,86 +1346,103 @@ export default function PosIndex({
 
                     <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:pb-4">
                         {products.length > 0 ? (
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                                {products.map((product) => {
-                                    const quantityInCart = cart
-                                        .filter(
-                                            (item) =>
-                                                item.product_id === product.id,
-                                        )
-                                        .reduce(
-                                            (total, item) => total + item.qty,
-                                            0,
-                                        );
+                            <>
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                                    {products.map((product) => {
+                                        const quantityInCart = cart
+                                            .filter(
+                                                (item) =>
+                                                    item.product_id ===
+                                                    product.id,
+                                            )
+                                            .reduce(
+                                                (total, item) =>
+                                                    total + item.qty,
+                                                0,
+                                            );
 
-                                    return (
-                                        <article
-                                            key={product.id}
-                                            className="group flex min-h-64 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white"
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    addToCart(product)
-                                                }
-                                                className="flex flex-1 flex-col p-3 text-left"
-                                                disabled={
-                                                    Number(product.stock) <= 0
-                                                }
+                                        return (
+                                            <article
+                                                key={product.id}
+                                                className="group flex min-h-64 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white"
                                             >
-                                                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-stone-100 bg-stone-50">
-                                                    {product.image_url ? (
-                                                        <img
-                                                            src={
-                                                                product.image_url
-                                                            }
-                                                            alt={product.name}
-                                                            className="size-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="grid size-full place-items-center text-stone-300">
-                                                            <PackageOpen className="size-8" />
-                                                        </div>
-                                                    )}
-                                                    {quantityInCart > 0 && (
-                                                        <span className="absolute top-2 right-2 grid min-w-7 place-items-center rounded-full border border-lime-300 bg-lime-100 px-2 py-1 text-xs font-bold text-lime-900">
-                                                            {formatNumber(
-                                                                quantityInCart,
-                                                            )}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold text-stone-800">
-                                                    {product.name}
-                                                </p>
-                                                <p className="mt-1 text-[11px] text-stone-500">
-                                                    {product.sku}
-                                                </p>
-                                                <div className="mt-auto flex items-end justify-between gap-2 pt-3">
-                                                    <div>
-                                                        <p className="font-bold text-lime-700">
-                                                            {product.price_retail
-                                                                ? formatCurrency(
-                                                                      product.price_retail,
-                                                                  )
-                                                                : 'Belum ada harga'}
-                                                        </p>
-                                                        <p className="text-[11px] text-stone-500">
-                                                            Stok{' '}
-                                                            {formatNumber(
-                                                                product.stock,
-                                                            )}
-                                                        </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        addToCart(product)
+                                                    }
+                                                    className="flex flex-1 flex-col p-3 text-left"
+                                                    disabled={
+                                                        Number(product.stock) <=
+                                                        0
+                                                    }
+                                                >
+                                                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-stone-100 bg-stone-50">
+                                                        {product.image_url ? (
+                                                            <img
+                                                                src={
+                                                                    product.image_url
+                                                                }
+                                                                alt={
+                                                                    product.name
+                                                                }
+                                                                className="size-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="grid size-full place-items-center text-stone-300">
+                                                                <PackageOpen className="size-8" />
+                                                            </div>
+                                                        )}
+                                                        {quantityInCart > 0 && (
+                                                            <span className="absolute top-2 right-2 grid min-w-7 place-items-center rounded-full border border-lime-300 bg-lime-100 px-2 py-1 text-xs font-bold text-lime-900">
+                                                                {formatNumber(
+                                                                    quantityInCart,
+                                                                )}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-lime-300 bg-lime-100 text-lime-900 group-hover:bg-lime-200">
-                                                        <Plus className="size-4" />
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        </article>
-                                    );
-                                })}
-                            </div>
+                                                    <p className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold text-stone-800">
+                                                        {product.name}
+                                                    </p>
+                                                    <p className="mt-1 text-[11px] text-stone-500">
+                                                        {product.sku}
+                                                    </p>
+                                                    <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                                                        <div>
+                                                            <p className="font-bold text-lime-700">
+                                                                {product.price_retail
+                                                                    ? formatCurrency(
+                                                                          product.price_retail,
+                                                                      )
+                                                                    : 'Belum ada harga'}
+                                                            </p>
+                                                            <p className="text-[11px] text-stone-500">
+                                                                Stok{' '}
+                                                                {formatNumber(
+                                                                    product.stock,
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-lime-300 bg-lime-100 text-lime-900 group-hover:bg-lime-200">
+                                                            <Plus className="size-4" />
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                                <div
+                                    ref={productLoadMoreRef}
+                                    className="flex min-h-16 items-center justify-center pt-5 text-sm text-stone-500"
+                                >
+                                    {isLoadingMoreProducts
+                                        ? 'Memuat produk berikutnya...'
+                                        : nextProductPage !== null
+                                          ? 'Gulir untuk memuat produk berikutnya'
+                                          : `${formatNumber(productTotal)} produk telah ditampilkan`}
+                                </div>
+                            </>
                         ) : (
                             <div className="grid h-full min-h-64 place-items-center text-center">
                                 <div>
@@ -1582,37 +1640,71 @@ export default function PosIndex({
                                         ),
                                     )}
                                 </select>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    <Input
-                                        aria-label={`Nominal pembayaran ${index + 1}`}
-                                        type="number"
-                                        inputMode="numeric"
-                                        min="1"
-                                        value={payment.amount || ''}
-                                        onChange={(event) =>
-                                            updatePayment(
-                                                payment.id,
-                                                'amount',
-                                                Number(event.target.value),
-                                            )
-                                        }
-                                        className="h-11 text-right font-semibold"
-                                        placeholder="Nominal"
-                                    />
-                                    <Input
-                                        aria-label={`Nomor referensi pembayaran ${index + 1}`}
-                                        value={payment.reference_number}
-                                        onChange={(event) =>
-                                            updatePayment(
-                                                payment.id,
-                                                'reference_number',
-                                                event.target.value,
-                                            )
-                                        }
-                                        className="h-11"
-                                        placeholder="Referensi (opsional)"
-                                    />
-                                </div>
+                                {payment.method === 'points' ? (
+                                    <div className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-2">
+                                        <div className="flex items-center gap-3">
+                                            <FormattedNumberInput
+                                                aria-label={`Poin yang digunakan ${index + 1}`}
+                                                value={payment.points_to_redeem}
+                                                kind="quantity"
+                                                disabled={!selectedCustomer}
+                                                onValueChange={(points) =>
+                                                    updatePayment(
+                                                        payment.id,
+                                                        'points_to_redeem',
+                                                        Math.min(
+                                                            Math.floor(points),
+                                                            maximumPointsForTransaction,
+                                                        ),
+                                                    )
+                                                }
+                                                className="h-10 bg-white text-right font-semibold"
+                                                placeholder="Poin"
+                                            />
+                                            <p className="shrink-0 text-right text-xs leading-5 text-stone-600">
+                                                ={' '}
+                                                {formatCurrency(
+                                                    paymentAmount(payment),
+                                                )}
+                                            </p>
+                                        </div>
+                                        <p className="mt-1.5 text-xs leading-5 text-stone-600">
+                                            {selectedCustomer
+                                                ? `1 poin = ${formatCurrency(loyaltySettings.redeem_value)} · maksimal ${formatNumber(maximumPointsForTransaction)} poin pada transaksi ini.`
+                                                : 'Pilih pelanggan terlebih dahulu untuk menggunakan poin.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        <FormattedNumberInput
+                                            aria-label={`Nominal pembayaran ${index + 1}`}
+                                            value={payment.amount}
+                                            onValueChange={(amount) =>
+                                                updatePayment(
+                                                    payment.id,
+                                                    'amount',
+                                                    amount,
+                                                )
+                                            }
+                                            prefix="Rp"
+                                            className="h-11 text-right font-semibold"
+                                            placeholder="0"
+                                        />
+                                        <Input
+                                            aria-label={`Nomor referensi pembayaran ${index + 1}`}
+                                            value={payment.reference_number}
+                                            onChange={(event) =>
+                                                updatePayment(
+                                                    payment.id,
+                                                    'reference_number',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="h-11"
+                                            placeholder="Referensi (opsional)"
+                                        />
+                                    </div>
+                                )}
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -1755,16 +1847,13 @@ export default function PosIndex({
                             <Label htmlFor="closing_balance_actual">
                                 Uang fisik aktual (Rp)
                             </Label>
-                            <Input
+                            <FormattedNumberInput
                                 id="closing_balance_actual"
-                                type="number"
-                                inputMode="numeric"
-                                min="0"
                                 required
                                 value={closingBalanceActual}
-                                onChange={(event) =>
-                                    setClosingBalanceActual(event.target.value)
-                                }
+                                onValueChange={setClosingBalanceActual}
+                                prefix="Rp"
+                                placeholder="0"
                                 className="h-12 text-lg font-semibold"
                             />
                         </div>

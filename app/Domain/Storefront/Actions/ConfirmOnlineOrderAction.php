@@ -24,9 +24,14 @@ class ConfirmOnlineOrderAction
         return DB::transaction(function () use ($order, $userId): Order {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
 
-            if ($lockedOrder->getRawOriginal('status') !== OrderStatus::PAYMENT_VERIFICATION->value) {
+            $allowedStatuses = [
+                OrderStatus::PAYMENT_VERIFICATION->value,
+                OrderStatus::PENDING_PAYMENT->value, // Cash orders start here
+            ];
+
+            if (! in_array($lockedOrder->getRawOriginal('status'), $allowedStatuses, true)) {
                 throw ValidationException::withMessages([
-                    'order' => 'Hanya pesanan yang menunggu verifikasi pembayaran yang dapat dikonfirmasi.',
+                    'order' => 'Hanya pesanan yang menunggu pembayaran atau verifikasi yang dapat dikonfirmasi.',
                 ]);
             }
 

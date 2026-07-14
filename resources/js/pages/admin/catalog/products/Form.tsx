@@ -1,6 +1,7 @@
 import { Link, useForm } from '@inertiajs/react';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
 import type { FormEvent } from 'react';
+import BarcodeCameraScanner from '@/components/barcode-camera-scanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +40,6 @@ interface Props {
     units: Option[];
     suppliers: Option[];
     warehouses: Option[];
-    customerGroups: Option[];
 }
 
 const fieldClass =
@@ -52,15 +52,15 @@ export default function ProductForm({
     units,
     suppliers,
     warehouses,
-    customerGroups,
 }: Props) {
     const isEditing = Boolean(product);
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, transform } = useForm({
         _method: isEditing ? 'put' : 'post',
         name: product?.name ?? '',
         sku: product?.sku ?? '',
         category_id: product?.category_id ?? '',
         brand_id: product?.brand_id ?? '',
+        hpp_current: product?.hpp_current ?? 0,
         default_warehouse_id:
             product?.default_warehouse_id ?? warehouses[0]?.id ?? '',
         primary_supplier_id: product?.primary_supplier_id ?? '',
@@ -68,8 +68,6 @@ export default function ProductForm({
         online_display_unit_id:
             product?.online_display_unit_id ?? product?.base_unit_id ?? '',
         display_price_prefix: product?.display_price_prefix ?? 'exact',
-        product_type: product?.product_type ?? 'physical',
-        costing_method: product?.costing_method ?? 'WAC',
         is_active: product?.is_active ?? true,
         is_sellable: product?.is_sellable ?? true,
         sellable_pos: product?.sellable_pos ?? true,
@@ -77,13 +75,6 @@ export default function ProductForm({
         is_preorder: product?.is_preorder ?? false,
         preorder_eta_days: product?.preorder_eta_days ?? '',
         weight_grams: product?.weight_grams ?? '',
-        min_stock: product?.min_stock ?? 0,
-        max_stock: product?.max_stock ?? 0,
-        safety_stock: product?.safety_stock ?? 0,
-        reorder_point: product?.reorder_point ?? 0,
-        track_batch: product?.track_batch ?? false,
-        track_expiry: product?.track_expiry ?? false,
-        track_serial_number: product?.track_serial_number ?? false,
         description_short: product?.description_short ?? '',
         description_long: product?.description_long ?? '',
         barcodes: (product?.barcodes?.map((barcode: Record<string, any>) => ({
@@ -91,12 +82,26 @@ export default function ProductForm({
             unit_id: barcode.unit_id ?? '',
             is_primary: Boolean(barcode.is_primary),
         })) ?? []) as ProductBarcode[],
-        units: (product?.product_units?.map((unit: Record<string, any>) => ({
-            unit_id: unit.unit_id,
-            conversion_qty: unit.conversion_qty,
-            is_purchase_unit: Boolean(unit.is_purchase_unit),
-            is_sales_unit: Boolean(unit.is_sales_unit),
-        })) ?? []) as ProductUnit[],
+        base_retail_price:
+            product?.prices?.find(
+                (p: any) =>
+                    p.unit_id === product.base_unit_id &&
+                    p.price_type === 'retail',
+            )?.price ?? 0,
+        units: (product?.product_units?.map((unit: Record<string, any>) => {
+            const priceRow = product?.prices?.find(
+                (p: any) =>
+                    p.unit_id === unit.unit_id && p.price_type === 'retail',
+            );
+
+            return {
+                unit_id: unit.unit_id,
+                conversion_qty: unit.conversion_qty,
+                is_purchase_unit: Boolean(unit.is_purchase_unit),
+                is_sales_unit: Boolean(unit.is_sales_unit),
+                retail_price: priceRow?.price ?? 0,
+            };
+        }) ?? []) as (ProductUnit & { retail_price: number | string })[],
         prices: (product?.prices?.map((price: Record<string, any>) => ({
             unit_id: price.unit_id,
             price_type: price.price_type,
@@ -115,6 +120,51 @@ export default function ProductForm({
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
+
+        transform((currentData) => {
+            const otherPrices = currentData.prices.filter(
+                (p: any) => p.price_type !== 'retail',
+            );
+            const retailPrices: any[] = [];
+
+            if (currentData.base_unit_id) {
+                retailPrices.push({
+                    unit_id: currentData.base_unit_id,
+                    price_type: 'retail',
+                    customer_group_id: '',
+                    min_qty: 1,
+                    max_qty: '',
+                    price: currentData.base_retail_price,
+                    channel: 'both',
+                    active_from: '',
+                    active_until: '',
+                    is_active: true,
+                });
+            }
+
+            currentData.units.forEach((u: any) => {
+                if (u.unit_id && u.is_sales_unit) {
+                    retailPrices.push({
+                        unit_id: u.unit_id,
+                        price_type: 'retail',
+                        customer_group_id: '',
+                        min_qty: 1,
+                        max_qty: '',
+                        price: u.retail_price || 0,
+                        channel: 'both',
+                        active_from: '',
+                        active_until: '',
+                        is_active: true,
+                    });
+                }
+            });
+
+            return {
+                ...currentData,
+                prices: [...otherPrices, ...retailPrices],
+            };
+        });
+
         post(
             isEditing
                 ? `/admin/master/products/${product?.id}`
@@ -133,16 +183,6 @@ export default function ProductForm({
         setData('units', rows);
     };
 
-    const updatePrice = (
-        index: number,
-        key: keyof ProductPrice,
-        value: unknown,
-    ) => {
-        const rows = [...data.prices];
-        rows[index] = { ...rows[index], [key]: value };
-        setData('prices', rows);
-    };
-
     const formErrors = errors as unknown as Record<string, string>;
     const errorFor = (key: string) =>
         formErrors[key] ? (
@@ -155,7 +195,7 @@ export default function ProductForm({
         <AdminLayout title={isEditing ? 'Ubah Produk' : 'Produk Baru'}>
             <form
                 onSubmit={submit}
-                className="mx-auto max-w-7xl space-y-6 p-4 pb-24 md:p-8"
+                className="mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8"
             >
                 <header className="flex flex-col justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:flex-row md:items-center">
                     <div>
@@ -168,8 +208,8 @@ export default function ProductForm({
                                 : 'Tambahkan produk lengkap'}
                         </h2>
                         <p className="mt-1 text-sm text-stone-500">
-                            Atur identitas, stok, satuan, harga bertingkat, dan
-                            tampilan website dalam satu tempat.
+                            Isi informasi inti dulu. Pengaturan satuan, harga
+                            grosir, dan barcode dapat ditambahkan bila perlu.
                         </p>
                     </div>
                     <div className="flex gap-3">
@@ -237,7 +277,32 @@ export default function ProductForm({
                                     allowEmpty
                                 />
                             </Field>
+                            <Field
+                                label="Harga modal per satuan dasar (Rp)"
+                                error={errorFor('hpp_current')}
+                            >
+                                <Input
+                                    type="text"
+                                    value={
+                                        data.hpp_current
+                                            ? new Intl.NumberFormat(
+                                                  'id-ID',
+                                              ).format(Number(data.hpp_current))
+                                            : ''
+                                    }
+                                    onChange={(e) => {
+                                        const raw = e.target.value.replace(
+                                            /\D/g,
+                                            '',
+                                        );
+                                        setData('hpp_current', raw);
+                                    }}
+                                />
+                            </Field>
                         </div>
+                        <p className="mt-3 text-xs leading-5 text-stone-500">
+                            Contoh: bila satuan dasar adalah <strong>pcs</strong>, masukkan modal per pcs. Saat barang diterima dari pembelian, sistem akan memperbarui HPP rata-rata secara otomatis.
+                        </p>
                         <Field
                             label="Deskripsi singkat"
                             error={errorFor('description_short')}
@@ -348,20 +413,6 @@ export default function ProductForm({
                                 allowEmpty
                             />
                         </Field>
-                        <Field label="Metode HPP">
-                            <select
-                                className={fieldClass}
-                                value={data.costing_method}
-                                onChange={(e) =>
-                                    setData('costing_method', e.target.value)
-                                }
-                            >
-                                <option value="WAC">
-                                    Rata-rata tertimbang (WAC)
-                                </option>
-                                <option value="FIFO">FIFO</option>
-                            </select>
-                        </Field>
                         <Field label="Berat (gram)">
                             <Input
                                 type="number"
@@ -372,69 +423,6 @@ export default function ProductForm({
                                 }
                             />
                         </Field>
-                        <Field label="Stok minimum">
-                            <Input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={data.min_stock}
-                                onChange={(e) =>
-                                    setData('min_stock', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Stok maksimum">
-                            <Input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={data.max_stock}
-                                onChange={(e) =>
-                                    setData('max_stock', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Safety stock">
-                            <Input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={data.safety_stock}
-                                onChange={(e) =>
-                                    setData('safety_stock', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Reorder point">
-                            <Input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={data.reorder_point}
-                                onChange={(e) =>
-                                    setData('reorder_point', e.target.value)
-                                }
-                            />
-                        </Field>
-                    </div>
-                    <div className="mt-5 grid gap-3 md:grid-cols-3">
-                        <Toggle
-                            label="Lacak batch"
-                            checked={data.track_batch}
-                            onChange={(value) => setData('track_batch', value)}
-                        />
-                        <Toggle
-                            label="Lacak kedaluwarsa"
-                            checked={data.track_expiry}
-                            onChange={(value) => setData('track_expiry', value)}
-                        />
-                        <Toggle
-                            label="Lacak nomor serial"
-                            checked={data.track_serial_number}
-                            onChange={(value) =>
-                                setData('track_serial_number', value)
-                            }
-                        />
                     </div>
                 </section>
 
@@ -455,6 +443,7 @@ export default function ProductForm({
                                         conversion_qty: 1,
                                         is_purchase_unit: false,
                                         is_sales_unit: true,
+                                        retail_price: 0,
                                     },
                                 ])
                             }
@@ -497,31 +486,37 @@ export default function ProductForm({
                                 placeholder="Pilih satuan display"
                             />
                         </Field>
-                        <Field label="Label harga">
-                            <select
-                                className={fieldClass}
-                                value={data.display_price_prefix}
-                                onChange={(e) =>
-                                    setData(
-                                        'display_price_prefix',
-                                        e.target.value,
-                                    )
+                        <Field
+                            label="Harga jual per satuan dasar (Rp)"
+                            error={errorFor('prices.0.price')}
+                        >
+                            <Input
+                                type="text"
+                                value={
+                                    data.base_retail_price
+                                        ? new Intl.NumberFormat('id-ID').format(
+                                              Number(data.base_retail_price),
+                                          )
+                                        : ''
                                 }
-                            >
-                                <option value="exact">
-                                    Harga tepat — Rp3.000 /ons
-                                </option>
-                                <option value="from">
-                                    Mulai — Mulai Rp3.000 /ons
-                                </option>
-                            </select>
+                                onChange={(e) => {
+                                    const raw = e.target.value.replace(
+                                        /\D/g,
+                                        '',
+                                    );
+                                    setData('base_retail_price', raw);
+                                }}
+                            />
                         </Field>
                     </div>
+                    <p className="mt-3 text-xs leading-5 text-stone-500">
+                        Untuk jual per dus, renteng, atau lusin, tambahkan satuannya di bawah lalu isi harga jual paketnya. Sistem tetap menghitung stok dan modal dengan benar.
+                    </p>
                     <div className="mt-5 space-y-3">
                         {data.units.map((row, index) => (
                             <div
                                 key={index}
-                                className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_1fr_auto_auto_auto] md:items-end"
+                                className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_1fr_1fr_auto_auto_auto] md:items-end"
                             >
                                 <Field label="Satuan">
                                     <Select
@@ -546,6 +541,34 @@ export default function ProductForm({
                                                 e.target.value,
                                             )
                                         }
+                                    />
+                                </Field>
+                                <Field label="Harga Jual (Rp)">
+                                    <Input
+                                        type="text"
+                                        value={
+                                            (row as any).retail_price
+                                                ? new Intl.NumberFormat(
+                                                      'id-ID',
+                                                  ).format(
+                                                      Number(
+                                                          (row as any)
+                                                              .retail_price,
+                                                      ),
+                                                  )
+                                                : ''
+                                        }
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(
+                                                /\D/g,
+                                                '',
+                                            );
+                                            updateUnit(
+                                                index,
+                                                'retail_price' as keyof ProductUnit,
+                                                raw,
+                                            );
+                                        }}
                                     />
                                 </Field>
                                 <Toggle
@@ -592,25 +615,86 @@ export default function ProductForm({
                             </div>
                         ))}
                     </div>
-                </section>
+                    <details className="mt-5 rounded-xl border border-stone-200 bg-stone-50 p-4">
+                        <summary className="cursor-pointer text-sm font-bold text-stone-800">
+                            Harga grosir & harga khusus (opsional)
+                        </summary>
+                        <p className="mt-2 text-xs leading-5 text-stone-500">
+                            Gunakan hanya bila harga berubah saat pelanggan membeli banyak. Harga normal di atas tetap berlaku untuk pembelian biasa.
+                        </p>
+                        <div className="mt-4 space-y-3">
+                            {data.prices
+                                .filter((row) => row.price_type !== 'retail')
+                                .map((row) => {
+                                    const sourceIndex = data.prices.findIndex(
+                                        (source) => source === row,
+                                    );
 
-                <section className="rounded-2xl border border-stone-200 bg-white p-6">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                        <SectionTitle
-                            title="Harga bertingkat"
-                            description="Atur retail, grosir, member, reseller, promo, satuan, dan channel."
-                        />
+                                    return (
+                                        <div
+                                            key={`${row.unit_id}-${sourceIndex}`}
+                                            className="grid gap-3 rounded-xl border border-stone-200 bg-white p-3 md:grid-cols-[1fr_0.75fr_1fr_auto] md:items-end"
+                                        >
+                                            <Field label="Satuan">
+                                                <Select
+                                                    value={row.unit_id}
+                                                    onChange={(value) => {
+                                                        const rows = [...data.prices];
+                                                        rows[sourceIndex] = { ...row, unit_id: value };
+                                                        setData('prices', rows);
+                                                    }}
+                                                    options={units}
+                                                    placeholder="Satuan"
+                                                />
+                                            </Field>
+                                            <Field label="Mulai jumlah">
+                                                <Input
+                                                    type="number"
+                                                    min="2"
+                                                    value={row.min_qty}
+                                                    onChange={(event) => {
+                                                        const rows = [...data.prices];
+                                                        rows[sourceIndex] = { ...row, min_qty: event.target.value };
+                                                        setData('prices', rows);
+                                                    }}
+                                                />
+                                            </Field>
+                                            <Field label="Harga per satuan (Rp)">
+                                                <Input
+                                                    type="text"
+                                                    value={row.price ? new Intl.NumberFormat('id-ID').format(Number(row.price)) : ''}
+                                                    onChange={(event) => {
+                                                        const rows = [...data.prices];
+                                                        rows[sourceIndex] = { ...row, price: event.target.value.replace(/\D/g, '') };
+                                                        setData('prices', rows);
+                                                    }}
+                                                />
+                                            </Field>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Hapus harga grosir"
+                                                onClick={() => setData('prices', data.prices.filter((_, current) => current !== sourceIndex))}
+                                            >
+                                                <Trash2 className="size-4 text-red-600" />
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
+                        </div>
                         <Button
                             type="button"
                             variant="outline"
+                            className="mt-4"
                             onClick={() =>
                                 setData('prices', [
                                     ...data.prices,
                                     {
                                         unit_id: data.base_unit_id,
-                                        price_type: 'retail',
+                                        price_type: 'wholesale_tier',
                                         customer_group_id: '',
-                                        min_qty: 1,
+                                        min_qty: 12,
                                         max_qty: '',
                                         price: 0,
                                         channel: 'both',
@@ -622,198 +706,37 @@ export default function ProductForm({
                             }
                         >
                             <Plus className="mr-2 size-4" />
-                            Tambah harga
+                            Tambah harga grosir
                         </Button>
-                    </div>
-                    {errorFor('prices')}
-                    <div className="mt-5 space-y-4">
-                        {data.prices.map((row, index) => (
-                            <div
-                                key={index}
-                                className="grid gap-3 rounded-2xl border border-stone-200 p-4 md:grid-cols-2 xl:grid-cols-6"
-                            >
-                                <Field label="Satuan">
-                                    <Select
-                                        value={row.unit_id}
-                                        onChange={(value) =>
-                                            updatePrice(index, 'unit_id', value)
-                                        }
-                                        options={units}
-                                        placeholder="Satuan"
-                                    />
-                                </Field>
-                                <Field label="Tipe">
-                                    <select
-                                        className={fieldClass}
-                                        value={row.price_type}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'price_type',
-                                                e.target.value,
-                                            )
-                                        }
-                                    >
-                                        <option value="retail">Retail</option>
-                                        <option value="wholesale_tier">
-                                            Grosir bertingkat
-                                        </option>
-                                        <option value="member">Member</option>
-                                        <option value="reseller">
-                                            Reseller
-                                        </option>
-                                        <option value="promo">
-                                            Promo harga
-                                        </option>
-                                    </select>
-                                </Field>
-                                <Field label="Grup pelanggan">
-                                    <Select
-                                        value={row.customer_group_id}
-                                        onChange={(value) =>
-                                            updatePrice(
-                                                index,
-                                                'customer_group_id',
-                                                value,
-                                            )
-                                        }
-                                        options={customerGroups}
-                                        placeholder="Semua pelanggan"
-                                        allowEmpty
-                                    />
-                                </Field>
-                                <Field label="Qty minimum">
-                                    <Input
-                                        type="number"
-                                        min="0.001"
-                                        step="0.001"
-                                        value={row.min_qty}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'min_qty',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <Field label="Qty maksimum">
-                                    <Input
-                                        type="number"
-                                        min="0.001"
-                                        step="0.001"
-                                        value={row.max_qty}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'max_qty',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <Field label="Harga jual">
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        value={row.price}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'price',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <Field label="Channel">
-                                    <select
-                                        className={fieldClass}
-                                        value={row.channel}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'channel',
-                                                e.target.value,
-                                            )
-                                        }
-                                    >
-                                        <option value="both">
-                                            POS & Online
-                                        </option>
-                                        <option value="pos">POS</option>
-                                        <option value="online">Online</option>
-                                    </select>
-                                </Field>
-                                <Field label="Mulai berlaku">
-                                    <Input
-                                        type="datetime-local"
-                                        value={row.active_from}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'active_from',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <Field label="Selesai berlaku">
-                                    <Input
-                                        type="datetime-local"
-                                        value={row.active_until}
-                                        onChange={(e) =>
-                                            updatePrice(
-                                                index,
-                                                'active_until',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <div className="flex items-end justify-between gap-3 xl:col-span-3">
-                                    <Toggle
-                                        compact
-                                        label="Aktif"
-                                        checked={row.is_active}
-                                        onChange={(value) =>
-                                            updatePrice(
-                                                index,
-                                                'is_active',
-                                                value,
-                                            )
-                                        }
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        onClick={() =>
-                                            setData(
-                                                'prices',
-                                                data.prices.filter(
-                                                    (_, current) =>
-                                                        current !== index,
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        <Trash2 className="mr-2 size-4 text-red-600" />
-                                        Hapus
-                                    </Button>
-                                </div>
-                                {errorFor(`prices.${index}.unit_id`)}
-                                {errorFor(`prices.${index}.max_qty`)}
-                            </div>
-                        ))}
-                    </div>
+                    </details>
                 </section>
 
                 <section className="grid gap-6 lg:grid-cols-2">
                     <div className="rounded-2xl border border-stone-200 bg-white p-6">
-                        <div className="flex justify-between gap-4">
+                        <div className="flex flex-wrap justify-between gap-3">
                             <SectionTitle
                                 title="Barcode"
                                 description="Barcode dapat diarahkan ke satuan tertentu."
+                            />
+                            <div className="flex gap-2">
+                            <BarcodeCameraScanner
+                                label="Scan kamera"
+                                onDetected={(barcode) => {
+                                    const blankIndex = data.barcodes.findIndex((row) => !row.barcode);
+                                    const barcodeRow = {
+                                        barcode,
+                                        unit_id: data.base_unit_id,
+                                        is_primary: data.barcodes.length === 0,
+                                    };
+
+                                    if (blankIndex >= 0) {
+                                        const rows = [...data.barcodes];
+                                        rows[blankIndex] = barcodeRow;
+                                        setData('barcodes', rows);
+                                    } else {
+                                        setData('barcodes', [...data.barcodes, barcodeRow]);
+                                    }
+                                }}
                             />
                             <Button
                                 type="button"
@@ -832,6 +755,7 @@ export default function ProductForm({
                                 <Plus className="mr-2 size-4" />
                                 Tambah
                             </Button>
+                            </div>
                         </div>
                         <div className="mt-5 space-y-3">
                             {data.barcodes.map((row, index) => (

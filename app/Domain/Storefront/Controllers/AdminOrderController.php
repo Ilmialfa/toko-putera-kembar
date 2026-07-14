@@ -62,14 +62,26 @@ class AdminOrderController extends Controller
     {
         $nextStatus = OrderStatus::from($request->string('status')->toString());
         $currentStatus = OrderStatus::from((string) $order->getRawOriginal('status'));
-        $allowedTransitions = [
-            OrderStatus::CONFIRMED->value => [OrderStatus::PREPARING],
-            OrderStatus::PREPARING->value => [OrderStatus::READY_FOR_PICKUP],
-            OrderStatus::READY_FOR_PICKUP->value => [OrderStatus::OUT_FOR_DELIVERY, OrderStatus::COMPLETED],
-            OrderStatus::OUT_FOR_DELIVERY->value => [OrderStatus::COMPLETED],
-            OrderStatus::PENDING_PAYMENT->value => [OrderStatus::CANCELLED],
-            OrderStatus::PAYMENT_VERIFICATION->value => [OrderStatus::CANCELLED],
-        ];
+
+        // Transisi berbeda untuk pickup vs delivery
+        $isPickup = $order->delivery_method === 'pickup';
+
+        $allowedTransitions = $isPickup
+            ? [
+                // Pickup: bisa langsung selesai setelah konfirmasi
+                OrderStatus::CONFIRMED->value => [OrderStatus::PREPARING, OrderStatus::COMPLETED],
+                OrderStatus::PREPARING->value => [OrderStatus::COMPLETED],
+                OrderStatus::PENDING_PAYMENT->value => [OrderStatus::CANCELLED],
+                OrderStatus::PAYMENT_VERIFICATION->value => [OrderStatus::CANCELLED],
+            ]
+            : [
+                // Delivery: harus lewat tahap pengiriman
+                OrderStatus::CONFIRMED->value => [OrderStatus::PREPARING],
+                OrderStatus::PREPARING->value => [OrderStatus::OUT_FOR_DELIVERY],
+                OrderStatus::OUT_FOR_DELIVERY->value => [OrderStatus::COMPLETED],
+                OrderStatus::PENDING_PAYMENT->value => [OrderStatus::CANCELLED],
+                OrderStatus::PAYMENT_VERIFICATION->value => [OrderStatus::CANCELLED],
+            ];
 
         if (! in_array($nextStatus, $allowedTransitions[$currentStatus->value] ?? [], true)) {
             throw ValidationException::withMessages(['status' => 'Perubahan status pesanan tidak diizinkan.']);

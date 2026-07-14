@@ -4,6 +4,8 @@ use App\Models\Promotion;
 use App\Models\StoreLocation;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     $this->withoutVite();
@@ -14,10 +16,17 @@ beforeEach(function () {
 });
 
 it('membuat campaign voucher lengkap', function () {
+    Storage::fake('public');
+
     $this->actingAs($this->owner)->post('/admin/promotions', [
         'store_id' => $this->store->id,
         'name' => 'Hemat Awal Bulan',
         'description' => 'Voucher member toko.',
+        'storefront_visible' => true,
+        'storefront_title' => 'Hemat stok warung',
+        'storefront_summary' => 'Potongan untuk belanja awal bulan.',
+        'storefront_badge' => 'Promo member',
+        'storefront_image' => UploadedFile::fake()->image('hemat-awal-bulan.jpg'),
         'type' => 'voucher',
         'status' => 'active',
         'start_date' => now()->subHour()->format('Y-m-d H:i:s'),
@@ -41,8 +50,12 @@ it('membuat campaign voucher lengkap', function () {
 
     $promotion = Promotion::query()->with('vouchers')->firstOrFail();
     expect($promotion->status)->toBe('active')
+        ->and($promotion->storefront_visible)->toBeTrue()
+        ->and($promotion->storefront_title)->toBe('Hemat stok warung')
         ->and($promotion->vouchers)->toHaveCount(1)
         ->and($promotion->vouchers->first()->code)->toBe('HEMAT10');
+
+    Storage::disk('public')->assertExists($promotion->storefront_image_path);
 });
 
 it('menyalin campaign sebagai draft tanpa voucher', function () {

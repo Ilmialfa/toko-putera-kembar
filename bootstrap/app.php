@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        $middleware->redirectGuestsTo(function (Request $request): string {
+            return $request->is('akun') || $request->is('akun/*')
+                ? route('customer.login')
+                : route('login');
+        });
 
         $middleware->web(append: [
             HandleAppearance::class,

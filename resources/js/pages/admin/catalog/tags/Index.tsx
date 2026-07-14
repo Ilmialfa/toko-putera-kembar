@@ -2,6 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useConfirmation } from '@/components/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -34,6 +35,7 @@ interface TagIndexProps {
 }
 
 export default function TagIndex({ tags, filters }: TagIndexProps) {
+    const confirm = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -85,8 +87,15 @@ export default function TagIndex({ tags, filters }: TagIndexProps) {
             },
         });
     };
-    const removeTag = (tag: Tag) => {
-        if (confirm(`Hapus tag "${tag.name}"?`)) {
+    const removeTag = async (tag: Tag) => {
+        if (
+            await confirm({
+                title: `Hapus tag ${tag.name}?`,
+                description: 'Tag akan dihapus dari katalog produk.',
+                confirmLabel: 'Hapus tag',
+                destructive: true,
+            })
+        ) {
             destroy(`/admin/master/tags/${tag.id}`);
         }
     };

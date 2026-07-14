@@ -5,30 +5,50 @@ namespace App\Domain\Finance\Controllers;
 use App\Domain\Finance\Services\JournalService;
 use App\Http\Controllers\Controller;
 use App\Models\CashAccount;
+use App\Models\CashMovement;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ExpenseController extends Controller
 {
-    public function index()
+    public function index(Request $request): Response
     {
-        $expenses = Expense::with(['expenseCategory', 'cashAccount', 'creator'])
+        $storeId = (int) $request->user()->store_id;
+        $expenses = Expense::query()
+            ->where('store_location_id', $storeId)
+            ->with(['expenseCategory', 'cashAccount', 'creator'])
             ->latest('date')
             ->paginate(15);
 
         $categories = ExpenseCategory::where('is_active', true)->get();
-        $cashAccounts = CashAccount::where('is_active', true)->get();
+        $cashAccounts = CashAccount::query()
+            ->where('store_id', $storeId)
+            ->where('is_active', true)
+            ->get();
 
         return Inertia::render('admin/finance/expenses/Index', [
             'expenses' => $expenses,
             'categories' => $categories,
             'cashAccounts' => $cashAccounts,
+            'summary' => [
+                'this_month_total' => (float) Expense::query()
+                    ->where('store_location_id', $storeId)
+                    ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->sum('amount'),
+                'this_month_count' => Expense::query()
+                    ->where('store_location_id', $storeId)
+                    ->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->count(),
+            ],
         ]);
     }
 
-    public function store(Request $request, JournalService $journalService)
+    public function store(Request $request, JournalService $journalService): RedirectResponse
     {
         $data = $request->validate([
             'expense_category_id' => 'required|exists:expense_categories,id',
@@ -38,29 +58,65 @@ class ExpenseController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $data['store_location_id'] = $request->user()->store_id; // Default to user's store
-        $data['created_by'] = $request->user()->id;
+        $user = $request->user();
 
-        $expense = Expense::create($data);
+        if ($user === null) {
+            abort(401);
+        }
 
-        // Auto-generate Journal Entry
-        // Debit: Expense Account (we assume category maps to an expense account, but for simplicity let's use 6900 - Beban Lain-lain)
-        // Credit: Cash Account (1100)
+        $cashAccount = CashAccount::query()
+            ->where('store_id', $user->store_id)
+            ->where('is_active', true)
+            ->findOrFail($data['cash_account_id']);
 
-        $lines = [
-            ['account_code' => '6900', 'debit' => $expense->amount, 'credit' => 0], // Beban Lain-lain
-            ['account_code' => '1100', 'debit' => 0, 'credit' => $expense->amount], // Kas
-        ];
+        DB::transaction(function () use ($cashAccount, $data, $journalService, $user): void {
+            $expense = Expense::query()->create([
+                ...$data,
+                'store_location_id' => $user->store_id,
+                'created_by' => $user->id,
+            ]);
+            $category = ExpenseCategory::query()->findOrFail($expense->expense_category_id);
 
-        $journalService->recordEntry(
-            $expense->store_location_id,
-            $expense->date,
-            'Beban: '.($expense->notes ?? 'Pengeluaran Operasional'),
-            Expense::class,
-            $expense->id,
-            $lines
-        );
+            CashMovement::query()->create([
+                'cashier_shift_id' => null,
+                'cash_account_id' => $cashAccount->id,
+                'type' => 'out',
+                'amount' => $expense->amount,
+                'reason' => 'Pengeluaran: '.($expense->notes ?? $category->name),
+                'created_by' => $user->id,
+            ]);
+
+            $journalService->recordEntry(
+                (int) $expense->store_location_id,
+                (string) $expense->getRawOriginal('date'),
+                'Beban: '.($expense->notes ?? $category->name),
+                Expense::class,
+                (int) $expense->id,
+                [
+                    ['account_code' => $this->expenseAccountCode($category), 'debit' => $expense->amount, 'credit' => 0],
+                    ['account_code' => $this->cashAccountCode($cashAccount), 'debit' => 0, 'credit' => $expense->amount],
+                ],
+            );
+        });
 
         return redirect()->back()->with('success', 'Pengeluaran berhasil dicatat beserta jurnal otomatis.');
+    }
+
+    private function cashAccountCode(CashAccount $cashAccount): string
+    {
+        return $cashAccount->type === 'cash' ? '1100' : '1110';
+    }
+
+    private function expenseAccountCode(ExpenseCategory $category): string
+    {
+        $name = mb_strtolower($category->name);
+
+        return match (true) {
+            str_contains($name, 'gaji') => '6100',
+            str_contains($name, 'sewa') => '6200',
+            str_contains($name, 'listrik'), str_contains($name, 'air'), str_contains($name, 'telepon') => '6300',
+            str_contains($name, 'transport') => '6400',
+            default => '6900',
+        };
     }
 }
